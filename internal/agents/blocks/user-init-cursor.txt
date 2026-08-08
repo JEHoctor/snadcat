@@ -1,0 +1,32 @@
+# Cursor auth uses the placeholder value from sandcat.env. The mitmproxy addon
+# substitutes it with the real secret on allowed outbound Cursor requests.
+
+# Apply Sandcat-managed Cursor CLI settings. mitmproxy merges settings.json
+# `cursor.cli` at startup and writes /mitmproxy-config/cursor-cli-config.json;
+# deep-merge that fragment into agent-home cli-config.json so Sandcat-owned
+# keys win while other Cursor-written keys (model, permissions, etc.) persist.
+# API keys belong in secrets.CURSOR_API_KEY — not cursor.cli or cli-config.json.
+SANDCAT_CURSOR_CLI="/mitmproxy-config/cursor-cli-config.json"
+if [ -f "$SANDCAT_CURSOR_CLI" ] && command -v jq >/dev/null 2>&1; then
+    sandcat_cli="$(jq -c 'if type == "object" then . else {} end' "$SANDCAT_CURSOR_CLI" 2>/dev/null || echo '{}')"
+    if [ "$sandcat_cli" != "{}" ] && [ -n "$sandcat_cli" ]; then
+        for CURSOR_CLI_CONFIG in "$HOME/.config/cursor/cli-config.json" "$HOME/.cursor/cli-config.json"; do
+            mkdir -p "$(dirname "$CURSOR_CLI_CONFIG")"
+            if [ ! -s "$CURSOR_CLI_CONFIG" ]; then
+                echo '{}' > "$CURSOR_CLI_CONFIG"
+            fi
+            tmp="$(mktemp)"
+            if jq -s '.[0] * .[1]' "$CURSOR_CLI_CONFIG" <(echo "$sandcat_cli") > "$tmp"; then
+                cat "$tmp" > "$CURSOR_CLI_CONFIG" \
+                    || echo "Warning: failed to apply Sandcat cursor.cli to $CURSOR_CLI_CONFIG" >&2
+            else
+                echo "Warning: failed to merge Sandcat cursor.cli into $CURSOR_CLI_CONFIG" >&2
+            fi
+            rm -f "$tmp"
+        done
+    fi
+else
+    if [ -f "$SANDCAT_CURSOR_CLI" ]; then
+        echo "Warning: jq not found; cannot apply Sandcat cursor.cli settings" >&2
+    fi
+fi

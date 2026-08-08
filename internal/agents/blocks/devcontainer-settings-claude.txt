@@ -1,0 +1,9 @@
+				// Sandcat provides the security boundary (network isolation,
+				// secret substitution, iptables kill-switch), so permission
+				// prompts inside the container add friction without meaningful
+				// security benefit. Remove these if you prefer interactive
+				// permission approval.
+				"claudeCode.allowDangerouslySkipPermissions": true,
+				"claudeCode.initialPermissionMode": "bypassPermissions",
+				// Optional: override the default Claude model.
+				"claudeCode.selectedModel": "opus"
