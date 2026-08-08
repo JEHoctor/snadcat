@@ -138,8 +138,21 @@ not "clean it up" into typed struct marshaling, and do not move the toggles into
   unnecessary once we control the encoder directly (set indent to 2 and check).
 
 Byte-for-byte parity here is what lets §5 diff whole trees instead of
-hand-auditing semantic equivalence. Budget real time for this milestone; expect
-to iterate against golden files.
+hand-auditing semantic equivalence.
+
+**Resolved (Milestone 3).** Byte-for-byte parity is achieved and enforced by
+`internal/compose/parity_test.go`, which runs the original bash functions and
+the Go ones over the same fixtures and requires identical output across 21
+combinations of agent, IDE, stack set and mount toggle. Two findings worth
+recording:
+
+- `yaml.Encoder.SetIndent(2)` is the whole of what was needed to match yq's
+  layout; comment attachment round-trips unchanged.
+- The `sed` post-pass **is** load-bearing, contrary to a first reading. It does
+  nothing in the arrangement it was probably written for, but it is required
+  when a disabled mount (rendered into a foot comment) is followed by an active
+  mount carrying a head comment — the `--ide jetbrains` path hits this. It is
+  reproduced in `stripBlankBeforeIndented`, pairwise consumption and all.
 
 ### 3.2 Order-preserving JSON with `//`-style defaulting
 
@@ -252,10 +265,10 @@ that's what the bats-mock tests currently cover.
   `SANDCAT_HOME`/`SANDCAT_BIN_DIR` overrides, non-interactive mode, PATH hints).
   The replacement must keep the documented env-var surface or the README's
   install section breaks for existing users.
-- **Byte-for-byte YAML parity may not be fully reachable** in yaml.v3 for some
-  edge cases (long-line folding, quoting style on `${HOME}` strings). If so,
-  fall back to a normalizing diff in the harness and accept semantic parity —
-  but only after confirming the difference is cosmetic in the generated file.
+- ~~**Byte-for-byte YAML parity may not be fully reachable** in yaml.v3.~~
+  Retired in Milestone 3 — see §3.1. Parity holds across the option matrix,
+  including quoting of `${HOME}` entries and the em-dashes in template
+  comments.
 - **`sandcat compose` passthrough** is easy to get subtly wrong under cobra;
   test it explicitly with args that look like sandcat's own flags.
 - **Bash 3.2 compatibility comments throughout** (`lib/compat.bash`'s `mapfile`
