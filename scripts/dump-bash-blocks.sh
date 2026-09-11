@@ -48,15 +48,26 @@ done
 
 SANDCAT_RTK=true sct_rtk_docker_install_block >"$rtk_dir/docker-install.txt"
 
+# devbox_dockerfile_block is an *unquoted* heredoc: it interpolates the
+# single-line jq merge program and relies on \$ escapes throughout, so the
+# rendered text is the only sensible thing to carry over.
+# shellcheck source=../cli/lib/devbox.bash
+source "$SCT_LIBDIR/devbox.bash"
+devbox_dir="$root/internal/devbox/blocks"
+rm -rf "$devbox_dir"
+mkdir -p "$devbox_dir"
+devbox_dockerfile_block >"$devbox_dir/dockerfile.txt"
+write_devbox_tools_json "$devbox_dir/tools.json"
+
 # Agents that contribute no block emit either nothing (`return 0`) or a bare
 # newline (`echo ""`). Callers wrap every one of these in $(...), which strips
 # trailing newlines, so both forms mean "no block". Drop those files rather
 # than embedding empty payloads; the Go side returns "" when a block is absent.
-for f in "$agents_dir"/*.txt "$rtk_dir"/*.txt; do
+for f in "$agents_dir"/*.txt "$rtk_dir"/*.txt "$devbox_dir"/*; do
 	[[ -e "$f" ]] || continue
 	if [[ -z "$(cat -- "$f")" ]]; then
 		rm -- "$f"
 	fi
 done
 
-echo "regenerated blocks under internal/{agents,rtk}/blocks/" >&2
+echo "regenerated blocks under internal/{agents,rtk,devbox}/blocks/" >&2
