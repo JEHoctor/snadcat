@@ -1,46 +1,37 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/spf13/cobra"
+
+	"github.com/jehoctor/snadcat/internal/agents"
+	"github.com/jehoctor/snadcat/internal/compose"
+	"github.com/jehoctor/snadcat/internal/config"
+	"github.com/jehoctor/snadcat/internal/devcontainer"
+	"github.com/jehoctor/snadcat/internal/initialize"
+	"github.com/jehoctor/snadcat/internal/log"
+	"github.com/jehoctor/snadcat/internal/project"
 )
 
-// InitOptions carries every `sandcat init` choice. Each field has both a flag
-// and an interactive prompt; supplying the flag suppresses the prompt, which is
-// what makes the differential harness able to run init non-interactively.
-type InitOptions struct {
-	Name           string
-	Path           string
-	Agent          string
-	IDE            string
-	Stacks         string
-	Proxy          string
-	SecretProvider string
-	Features       string
-
-	// The bash implementation distinguishes "flag absent" from "flag empty" for
-	// these — `--stacks ""` means "no stacks, don't ask", while omitting it
-	// means "prompt me". cobra's Changed() gives the same signal.
-	StacksProvided         bool
-	FeaturesProvided       bool
-	SecretProviderProvided bool
-
-	// OnePasswordAlias backs the deprecated --1password flag.
-	OnePasswordAlias bool
-}
-
 func newInitCmd() *cobra.Command {
-	var opts InitOptions
+	var opts initialize.Options
 
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize the Sandcat sandbox for a project",
 		Args:  cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
+			// The bash distinguishes "flag absent" (prompt) from "flag
+			// empty" (e.g. --stacks "" for no stacks); Changed() carries that.
 			opts.StacksProvided = c.Flags().Changed("stacks")
 			opts.FeaturesProvided = c.Flags().Changed("features")
 			opts.SecretProviderProvided = c.Flags().Changed("secret-provider") ||
 				c.Flags().Changed("sp")
-			return errNotImplemented
+			return initialize.Run(opts)
 		},
 	}
 
@@ -56,17 +47,85 @@ func newInitCmd() *cobra.Command {
 	f.StringVar(&opts.Features, "features", "", "Comma-separated features: tui, no-shared-cache, no-gitignore, no-rtk")
 	f.BoolVar(&opts.OnePasswordAlias, "1password", false, "Deprecated: same as --secret-provider 1password")
 
-	cmd.AddCommand(
-		&cobra.Command{
-			Use:   "settings",
-			Short: "Write only the project settings file",
-			RunE:  func(*cobra.Command, []string) error { return errNotImplemented },
+	cmd.AddCommand(newInitSettingsCmd(), newInitDevcontainerCmd())
+	return cmd
+}
+
+// `sandcat init settings <path>` writes only the project settings file.
+func newInitSettingsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "settings <path>",
+		Short: "Write only the project settings file",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			if err := config.WriteProjectSettings(args[0]); err != nil {
+				return err
+			}
+			log.Info("Settings file created at %s/settings.json", project.Dir)
+			return nil
 		},
-		&cobra.Command{
-			Use:   "devcontainer",
-			Short: "Write only the .devcontainer directory",
-			RunE:  func(*cobra.Command, []string) error { return errNotImplemented },
-		},
+	}
+}
+
+// `sandcat init devcontainer` writes only the .devcontainer directory, with
+// every choice supplied as a flag (there are no prompts at this level).
+func newInitDevcontainerCmd() *cobra.Command {
+	var (
+		settingsFile, projectPath, agentName, ide, name, stacksArg, proxy, provider string
+		onePassword                                                                 bool
 	)
+	cmd := &cobra.Command{
+		Use:   "devcontainer",
+		Short: "Write only the .devcontainer directory",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			for _, req := range []struct{ flag, value string }{
+				{"--settings-file", settingsFile}, {"--project-path", projectPath}, {"--agent", agentName},
+			} {
+				if req.value == "" {
+					return fmt.Errorf("Missing required parameter: %s", req.flag)
+				}
+			}
+			agent, ok := agents.Get(agentName)
+			if !ok {
+				return fmt.Errorf("Invalid agent: %s", agentName)
+			}
+			if onePassword {
+				provider = "1password"
+			}
+			if name == "" {
+				name = project.DeriveName(projectPath)
+			}
+			abs, err := filepath.Abs(projectPath)
+			if err != nil {
+				return err
+			}
+			mounts := compose.DefaultOptions()
+			mounts.Agent = agent
+			mounts.ApplyEnvOverrides(os.LookupEnv)
+			return devcontainer.Generate(devcontainer.Options{
+				ProjectPath:    abs,
+				ProjectName:    name,
+				SettingsFile:   settingsFile,
+				Agent:          agent,
+				IDE:            ide,
+				Stacks:         strings.Fields(stacksArg),
+				ProxyTUI:       proxy == "tui",
+				SecretProvider: compose.SecretProvider(provider),
+				RTKEnabled:     os.Getenv("SANDCAT_RTK") != "false",
+				Mounts:         mounts,
+			})
+		},
+	}
+	f := cmd.Flags()
+	f.StringVar(&settingsFile, "settings-file", "", "Settings file path, relative to the project directory")
+	f.StringVar(&projectPath, "project-path", "", "Project directory")
+	f.StringVar(&agentName, "agent", "", "Agent: claude, cursor, codex")
+	f.StringVar(&ide, "ide", "none", "IDE: vscode, jetbrains, none")
+	f.StringVar(&name, "name", "", "Project name")
+	f.StringVar(&stacksArg, "stacks", "", "Space-separated resolved stack names")
+	f.StringVar(&proxy, "proxy", "web", "Proxy UI mode: web, tui")
+	f.StringVar(&provider, "secret-provider", "none", "Secret backend: none, 1password, protonpass")
+	f.BoolVar(&onePassword, "1password", false, "Same as --secret-provider 1password")
 	return cmd
 }
