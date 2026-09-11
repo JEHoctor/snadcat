@@ -165,10 +165,16 @@ whole semantic is *set only if absent*:
 ```
 
 `encoding/json` into `map[string]any` loses key order, which would churn the
-user's settings file on every `init`. Use **`github.com/tidwall/sjson` +
-`gjson`** for surgical, order-preserving get/set. It maps almost one-to-one onto
-the `//` idiom (`gjson.Get(...).Exists()` guard, then `sjson.Set`) and avoids
-pulling a full YAML engine into the JSON path.
+user's settings file on every `init`.
+
+**Decision (revised in Milestone 4):** `internal/jsonfile`, a small
+order-preserving document model with an encoder that reproduces `yq -o json`'s
+layout (2-space indent, every element on its own line, no HTML escaping,
+numbers verbatim). The original plan named `sjson`/`gjson`; that was wrong for
+parity — they preserve the file's *existing* formatting, whereas `yq -o json`
+rewrites the whole document into its own style, so a first `init` on the
+template would have produced different bytes. `internal/config/parity_test.go`
+checks the seeding functions against the bash originals under a pinned `HOME`.
 
 Note the deliberate quirk already documented in the bash: `//` treats `false` as
 absent, so `cursor.cli.network.useHttp1ForAgent` gets a separate `has()` check.
