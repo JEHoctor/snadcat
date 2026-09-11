@@ -108,3 +108,15 @@ func Multiple(prompt string, options, defaults []string) ([]string, error) {
 		}
 	}
 }
+
+// YesNo asks a [y/N] question; only "y" or "Y" is a yes. Ports select_yes_no.
+func YesNo(prompt string) (bool, error) {
+	fmt.Fprintf(Out, "%s [y/N]: ", prompt)
+	r := bufio.NewReader(In)
+	s, err := r.ReadString('\n')
+	if err != nil && s == "" {
+		return false, nil // EOF is a no, as an empty read is in bash
+	}
+	s = strings.TrimSpace(s)
+	return s == "y" || s == "Y", nil
+}

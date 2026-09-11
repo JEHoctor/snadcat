@@ -1,11 +1,17 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/jehoctor/snadcat/internal/dockercli"
+	"github.com/jehoctor/snadcat/internal/log"
 )
 
 // find walks the tree to the command reached by the given path.
@@ -57,14 +63,114 @@ func TestPassthroughCommandsDoNotParseFlags(t *testing.T) {
 }
 
 func TestPassthroughForwardsUnknownFlags(t *testing.T) {
+	rec := useFakeDocker(t)
 	root := NewRootCmd()
 	root.SetArgs([]string{"compose", "up", "--build", "--wait"})
-	err := root.Execute()
-	// Reaching the stub means the args survived parsing; an "unknown flag"
-	// error would mean cobra consumed them.
-	if !errors.Is(err, errNotImplemented) {
-		t.Fatalf("got %v, want errNotImplemented", err)
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
 	}
+	// An "unknown flag" error would mean cobra consumed them; the recorded
+	// argv shows they reached docker intact, after the compose file.
+	want := "docker compose -f " + rec.composeFile + " up --build --wait"
+	if len(rec.calls) != 1 || rec.calls[0] != want {
+		t.Errorf("got %v, want [%s]", rec.calls, want)
+	}
+}
+
+// `sandcat run --build -- cmd args` splits at `--`: flags before go to
+// `compose run`, the rest is the command; and `down` always follows.
+func TestRunSplitsFlagsFromCommand(t *testing.T) {
+	rec := useFakeDocker(t)
+	root := NewRootCmd()
+	root.SetArgs([]string{"run", "--build", "--", "make", "test"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	prefix := "docker compose -f " + rec.composeFile + " "
+	want := []string{
+		prefix + "run --rm --build agent make test",
+		prefix + "down",
+	}
+	if strings.Join(rec.calls, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got %v, want %v", rec.calls, want)
+	}
+}
+
+func TestRunDefaultsToBash(t *testing.T) {
+	rec := useFakeDocker(t)
+	root := NewRootCmd()
+	root.SetArgs([]string{"run"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if want := "docker compose -f " + rec.composeFile + " run --rm agent bash"; rec.calls[0] != want {
+		t.Errorf("got %q, want %q", rec.calls[0], want)
+	}
+}
+
+func TestAttachDefaultsToLoginShell(t *testing.T) {
+	rec := useFakeDocker(t)
+	root := NewRootCmd()
+	root.SetArgs([]string{"attach"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if want := "docker compose -f " + rec.composeFile + " exec -u vscode agent bash --login"; rec.calls[0] != want {
+		t.Errorf("got %q, want %q", rec.calls[0], want)
+	}
+}
+
+// recorder captures docker invocations instead of running them.
+type recorder struct {
+	calls       []string
+	composeFile string
+}
+
+func (r *recorder) Run(name string, args ...string) error {
+	r.calls = append(r.calls, name+" "+strings.Join(args, " "))
+	return nil
+}
+
+func (r *recorder) OutputQuiet(name string, args ...string) (string, error) {
+	return r.Output(name, args...)
+}
+
+func (r *recorder) Output(name string, args ...string) (string, error) {
+	// Advisory lookups (volume/image inspect) report nothing, so the
+	// stale-home warning and cache creation stay quiet.
+	return "", errors.New("not found")
+}
+
+// useFakeDocker chdirs into a temp project with a compose file, swaps the
+// docker runner for a recorder, and puts a fake `docker` on PATH so Require
+// passes.
+func useFakeDocker(t *testing.T) *recorder {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".devcontainer"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(root, ".devcontainer", "compose-all.yml")
+	if err := os.WriteFile(file, []byte("name: demo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+
+	rec := &recorder{composeFile: file}
+	old := dockercli.Default
+	dockercli.Default = rec
+	t.Cleanup(func() { dockercli.Default = old })
+
+	oldOut := log.Out
+	log.Out = &bytes.Buffer{}
+	t.Cleanup(func() { log.Out = oldOut })
+	return rec
 }
 
 // The deprecated --1password alias and --sp shorthand are part of the
