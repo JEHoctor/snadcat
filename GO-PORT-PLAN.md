@@ -3,6 +3,11 @@
 Plan of record for replacing the bash CLI under `cli/` with a single static Go
 binary. Branched from `main` at `c16d8fd`.
 
+**Status:** Milestones 1–5 complete. Every command is implemented;
+`scripts/difftest.sh` shows 27/27 `init` configurations byte-identical to the
+bash CLI across both the project and home trees. Milestone 6 (cutover) is
+pending a decision on the docker/podman branch — see §6.
+
 **Drivers** (in priority order, per the decision to do a full rewrite rather
 than an incremental command-by-command migration):
 
