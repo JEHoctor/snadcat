@@ -3,12 +3,13 @@
 Plan of record for replacing the bash CLI under `cli/` with a single static Go
 binary. Branched from `main` at `c16d8fd`.
 
-**Status:** Milestones 1–5 complete. Every command is implemented;
-`scripts/difftest.sh` shows 27/27 `init` configurations byte-identical to the
-bash CLI across both the project and home trees. Milestone 6 was re-planned on
-2026-09-14 as a sequence that keeps the bash tree alive as the oracle through
-the upstream sync and the podman rework — see §4.1. Next step: 6a, land this
-branch in the fork.
+**Status:** Milestones 1–5 complete and 6b done as a stack of PRs (#3 port,
+#4 mechanical upstream merge, #5 Go changes tracking it). Every command is
+implemented; `scripts/difftest.sh` shows 33/33 `init` configurations
+byte-identical to the bash CLI across both the project and home trees at
+upstream `4a451ba`. Milestone 6 was re-planned on 2026-09-14 as a sequence that
+keeps the bash tree alive as the oracle through the upstream sync and the
+podman rework — see §4.1. Next step: 6c, the podman engine.
 
 **Drivers** (in priority order, per the decision to do a full rewrite rather
 than an incremental command-by-command migration):
@@ -241,7 +242,7 @@ This is not upstreaming work; the fork is the home for it.
 | Step | What | Gate |
 |---|---|---|
 | 6a | **Land `go-port` in the fork** with bash and Go coexisting: bash under `cli/`, Go under `cmd/` + `internal/`, templates still at `cli/templates/`. Add CI running `go test ./...` and `scripts/difftest.sh`. | PR merged; CI green |
-| 6b | **Sync upstream into the bash tree.** `tools/sandcat` is at `9f779f6`, 23 commits past our base `c16d8fd`; 22 files / ~900 lines touch `cli/lib`, `cli/libexec`, `cli/templates`. Merge `upstream/master`, re-run `scripts/dump-bash-blocks.sh`, then let the harness list every generated-file drift and port each one to Go. | difftest 27/27 again at the new base |
+| 6b | **Sync upstream into the bash tree.** Done 2026-09-15 as PRs #4 (pure merge of 24 commits, `c16d8fd..4a451ba`) and #5 (seven Go commits, one per upstream feature). The harness went 0/27 → 33/33; the method worked as designed. Worth repeating for the next sync. | difftest 33/33 at the new base |
 | 6c | **Redo the podman engine work in Go**, using `claude/docker-podman-migration-pmipfa` as the reference (its `engine.bash` and netns templates), not by merging it. Template-side changes land in `cli/templates/` and flow through the embed; `engine.bash` becomes `internal/dockercli` growing an engine abstraction. | harness green with both engines |
 | 6d | **Release tooling and install story** — §4.2. Retire `install.sh`'s clone-the-tree model; README install section rewritten. | first tagged release installs cleanly on Linux/macOS/Windows |
 | 6e | **Remove bash.** Delete `cli/lib`, `cli/libexec`, `cli/bin`, the bats submodules and `scripts/difftest.sh`; move `cli/templates/` to `internal/templates/assets/` and fold `embed.go` into it. The bash-backed parity tests are written to skip when `cli/` is absent, so nothing else changes. Replace them with committed golden files owned by the Go tree. | `go test ./...` green with no bash on the machine |
