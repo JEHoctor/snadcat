@@ -531,7 +531,7 @@ YAML
 
 	apply_secret_provider "$proxy_compose" "1password"
 
-	yq -e '.services.mitmproxy.image == "ghcr.io/virtuslab/sandcat-mitmproxy-op:latest"' "$proxy_compose"
+	yq -e '.services.mitmproxy.image == "ghcr.io/virtuslab/sandcat-mitmproxy-op:'"$SCT_MITMPROXY_VERSION"'"' "$proxy_compose"
 	yq -e '.services.mitmproxy.environment[] | select(. == "OP_SERVICE_ACCOUNT_TOKEN")' "$proxy_compose"
 }
 
@@ -545,8 +545,58 @@ YAML
 
 	apply_secret_provider "$proxy_compose" "protonpass"
 
-	yq -e '.services.mitmproxy.image == "ghcr.io/virtuslab/sandcat-mitmproxy-pass:latest"' "$proxy_compose"
+	yq -e '.services.mitmproxy.image == "ghcr.io/virtuslab/sandcat-mitmproxy-pass:'"$SCT_MITMPROXY_VERSION"'"' "$proxy_compose"
 	yq -e '.services.mitmproxy.environment[] | select(. == "PROTON_PASS_PERSONAL_ACCESS_TOKEN")' "$proxy_compose"
+}
+
+@test "add_copilot_config_volumes adds mcp-config.json when active" {
+	local compose_file="$BATS_TEST_TMPDIR/compose-all.yml"
+	echo 'services: {agent: {volumes: []}}' > "$compose_file"
+
+	add_copilot_config_volumes "$compose_file" true
+
+	# shellcheck disable=SC2016
+	yq -e '.services.agent.volumes[] | select(. == "${HOME}/.copilot/mcp-config.json:/home/vscode/.copilot/mcp-config.json:ro")' "$compose_file"
+}
+
+@test "add_copilot_config_volumes adds session-state when active" {
+	local compose_file="$BATS_TEST_TMPDIR/compose-all.yml"
+	echo 'services: {agent: {volumes: []}}' > "$compose_file"
+
+	add_copilot_config_volumes "$compose_file" true
+
+	# shellcheck disable=SC2016
+	yq -e '.services.agent.volumes[] | select(. == "${HOME}/.copilot/session-state:/home/vscode/.copilot/session-state:rw")' "$compose_file"
+}
+
+@test "add_copilot_config_volumes emits commented entries when active=false" {
+	local compose_file="$BATS_TEST_TMPDIR/compose-all.yml"
+	cat >"$compose_file" <<'YAML'
+services:
+  agent:
+    volumes:
+      - ../:/workspace
+YAML
+
+	add_copilot_config_volumes "$compose_file" false
+
+	# No active mounts.
+	run yq -e '.services.agent.volumes[] | select(. | test("copilot"))' "$compose_file"
+	assert_failure
+	# Commented placeholder present.
+	grep -q ".copilot" "$compose_file"
+}
+
+@test "customize_compose_file wires copilot config volumes for copilot agent" {
+	SETTINGS_FILE=".sandcat/settings.json"
+	mkdir -p "$BATS_TEST_TMPDIR/.sandcat"
+	touch "$BATS_TEST_TMPDIR/$SETTINGS_FILE"
+
+	SANDCAT_MOUNT_COPILOT_CONFIG=true \
+		customize_compose_file "$SETTINGS_FILE" "$COMPOSE_FILE" copilot none "test-project" ""
+
+	# shellcheck disable=SC2016
+	yq -e '.services.agent.volumes[] | select(. == "${HOME}/.copilot/mcp-config.json:/home/vscode/.copilot/mcp-config.json:ro")' "$COMPOSE_FILE"
 }
 
 @test "apply_secret_provider leaves default image for none" {

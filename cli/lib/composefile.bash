@@ -14,6 +14,8 @@ source "$SCT_LIBDIR/agents.bash"
 # variables to "true" before calling this function to add them as active mounts:
 #   - SANDCAT_MOUNT_CLAUDE_CONFIG: "true" to mount host Claude config (~/.claude)
 #   - SANDCAT_MOUNT_CODEX_CONFIG: "true" to mount host Codex config (~/.codex)
+#   - SANDCAT_MOUNT_COPILOT_CONFIG: "true" to mount host Copilot config (~/.copilot/mcp-config.json
+#     and ~/.copilot/session-state/)
 #   - SANDCAT_MOUNT_CURSOR_CONFIG: "true" to mount host Cursor config (~/.cursor
 #     customization read-only; workspace-scoped projects/<id>/ read-write;
 #     mcp.json read-only). chats/, plugins/, and subagents/ stay in agent-home
@@ -64,6 +66,9 @@ customize_compose_file() {
 		codex)
 			add_codex_config_volumes "$compose_file" "${SANDCAT_MOUNT_CODEX_CONFIG:=true}"
 			;;
+		copilot)
+			add_copilot_config_volumes "$compose_file" "${SANDCAT_MOUNT_COPILOT_CONFIG:=true}"
+			;;
 		cursor)
 			add_cursor_config_volumes "$compose_file" "${SANDCAT_MOUNT_CURSOR_CONFIG:=true}" "$project_name"
 			;;
@@ -104,14 +109,14 @@ apply_secret_provider() {
 		return 0
 		;;
 	1password)
-		yq -i '
-			.services.mitmproxy.image = "ghcr.io/virtuslab/sandcat-mitmproxy-op:latest" |
+		mitm_ver="$SCT_MITMPROXY_VERSION" yq -i '
+			.services.mitmproxy.image = "ghcr.io/virtuslab/sandcat-mitmproxy-op:" + env(mitm_ver) |
 			.services.mitmproxy.environment = ["OP_SERVICE_ACCOUNT_TOKEN"]
 		' "$compose_file"
 		;;
 	protonpass)
-		yq -i '
-			.services.mitmproxy.image = "ghcr.io/virtuslab/sandcat-mitmproxy-pass:latest" |
+		mitm_ver="$SCT_MITMPROXY_VERSION" yq -i '
+			.services.mitmproxy.image = "ghcr.io/virtuslab/sandcat-mitmproxy-pass:" + env(mitm_ver) |
 			.services.mitmproxy.environment = ["PROTON_PASS_PERSONAL_ACCESS_TOKEN"]
 		' "$compose_file"
 		;;
@@ -276,6 +281,24 @@ add_codex_config_volumes() {
 	add_volume_entry "$compose_file" '${HOME}/.codex/commands:/home/vscode/.codex/commands:ro' "$active"
 }
 
+# Adds Copilot config volume mounts to the agent service.
+# Args:
+#   $1 - Path to the Docker Compose file
+#   $2 - true to add as active, false to add as comment
+add_copilot_config_volumes() {
+	local compose_file=$1
+	local active=${2:-true}
+
+	# shellcheck disable=SC2016
+	add_volume_entry "$compose_file" '${HOME}/.copilot/mcp-config.json:/home/vscode/.copilot/mcp-config.json:ro' "$active" 'Host Copilot MCP config (optional)'
+	# session-state is read-write: Copilot CLI persists chat session events
+	# there (events.jsonl per session UUID). Read-only mount fails with
+	# EROFS on every prompt. Same trust posture as other host-mounted agent
+	# data — user chose to bind-mount, we honor read+write.
+	# shellcheck disable=SC2016
+	add_volume_entry "$compose_file" '${HOME}/.copilot/session-state:/home/vscode/.copilot/session-state:rw' "$active"
+}
+
 # Adds Cursor config volume mounts to the agent service.
 # Args:
 #   $1 - Path to the Docker Compose file
@@ -436,4 +459,134 @@ add_jetbrains_capabilities() {
 	yq -i '(.services.agent.cap_add[] | select(. == "DAC_OVERRIDE")) head_comment = "JetBrains IDE: bypass file permission checks on mounted volumes"' "$compose_file"
 	yq -i '(.services.agent.cap_add[] | select(. == "CHOWN")) head_comment = "JetBrains IDE: change ownership of IDE cache and state files"' "$compose_file"
 	yq -i '(.services.agent.cap_add[] | select(. == "FOWNER")) head_comment = "JetBrains IDE: bypass ownership checks on IDE-managed files"' "$compose_file"
+}
+
+# Reads the merged `upstream_ca_bundles` list from user settings
+# (~/.config/sandcat/settings.json) and project settings.local.json,
+# printing absolute paths one per line. Empty output if unconfigured.
+# Args:
+#   $1 - Project directory (contains .sandcat/settings.local.json if used)
+read_upstream_ca_bundles() {
+	require yq
+	local project_dir=$1
+
+	local user_settings="${HOME}/.config/sandcat/settings.json"
+	local project_local="${project_dir}/.sandcat/settings.local.json"
+
+	local out=""
+	local f
+	for f in "$user_settings" "$project_local"; do
+		[[ -f "$f" ]] || continue
+		# `(.upstream_ca_bundles // []) | .[]` yields one line per array entry
+		# and empty output when the key is missing or the array is empty. yq's
+		# stderr is discarded so a corrupted settings file (invalid JSON) is
+		# treated as "nothing configured" rather than aborting init.
+		local piece
+		piece=$(yq -r '(.upstream_ca_bundles // []) | .[]' "$f" 2>/dev/null || true)
+		[[ -n "$piece" ]] && out+="${piece}"$'\n'
+	done
+	# Strip trailing newline; leave inner newlines as separators.
+	printf '%s' "${out%$'\n'}"
+}
+
+# Validates a single upstream CA bundle path. Prints an error to stderr and
+# returns 1 on failure; returns 0 silently on success.
+# Args:
+#   $1 - Path to check
+validate_upstream_ca_bundle() {
+	local path=$1
+	if [[ "$path" != /* ]]; then
+		echo "upstream_ca_bundles: expected absolute path, got '$path'" >&2
+		return 1
+	fi
+	if [[ ! -e "$path" ]]; then
+		echo "upstream_ca_bundles: file not found: $path" >&2
+		return 1
+	fi
+	if [[ ! -r "$path" ]]; then
+		echo "upstream_ca_bundles: file not readable: $path" >&2
+		return 1
+	fi
+	if ! grep -q -- '-----BEGIN CERTIFICATE-----' "$path"; then
+		echo "upstream_ca_bundles: no PEM certificate block in $path" >&2
+		return 1
+	fi
+	return 0
+}
+
+# Adds the user's upstream CA bundles as read-only bind-mounts on the
+# mitmproxy service and rewrites the entrypoint to install them into the
+# container's system trust store before docker-entrypoint.sh drops
+# privileges. No-op when no bundles are configured. Validates each path
+# before touching the compose file — on any failure, the compose file is
+# left unchanged.
+# Args:
+#   $1 - Path to compose-proxy.yml
+#   $2 - Project directory
+apply_upstream_ca_bundles() {
+	require yq
+	local compose_file=$1
+	local project_dir=$2
+
+	local bundles=()
+	local line
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		[[ -n "$line" ]] || continue
+		bundles+=("$line")
+	done < <(read_upstream_ca_bundles "$project_dir")
+
+	[[ ${#bundles[@]} -eq 0 ]] && return 0
+
+	# Fail fast if any bundle is invalid — do not touch compose file.
+	local b
+	for b in "${bundles[@]}"; do
+		validate_upstream_ca_bundle "$b" || return 1
+	done
+
+	# Build the list of new volume entries. Naming: NNN-<basename>.crt.
+	local yq_array="" idx=0 host basename mount
+	for b in "${bundles[@]}"; do
+		host="$b"
+		basename=$(basename "$host")
+		basename="${basename%.*}"
+		mount=$(printf '%s:/upstream-ca/%03d-%s.crt:ro' "$host" "$idx" "$basename")
+		# JSON-string escape backslashes and quotes.
+		local escaped="${mount//\\/\\\\}"
+		escaped="${escaped//\"/\\\"}"
+		yq_array+="\"${escaped}\","
+		idx=$((idx + 1))
+	done
+	yq_array="[${yq_array%,}]"
+
+	yq -i ".services.mitmproxy.volumes = ((.services.mitmproxy.volumes // []) + ${yq_array})" "$compose_file"
+
+	# Prepend CA installation to whatever entrypoint the template already
+	# defines, rather than substituting a fixed one. The template's
+	# entrypoint also publishes the CA cert to the agent-facing
+	# mitmproxy-public volume (#25), and the healthcheck gates on that file —
+	# replacing it wholesale would stop the stack from ever becoming healthy.
+	# Reading it back also means template changes don't silently regress here.
+	#
+	# Two separate installs are required because mitmproxy loads its trust
+	# store from certifi (mitmproxy/net/tls.py calls certifi.where()), not
+	# the OS store — so update-ca-certificates alone does not make mitmproxy
+	# trust our CAs on the upstream leg. We append to certifi's bundle too.
+	local existing_entrypoint
+	existing_entrypoint=$(yq -r '.services.mitmproxy.entrypoint[2] // ""' "$compose_file")
+	if [[ -z "$existing_entrypoint" ]]; then
+		echo "upstream_ca_bundles: mitmproxy entrypoint not found in $compose_file" >&2
+		return 1
+	fi
+
+	# `|| exit 1` rather than chaining with `&&`: the template's entrypoint
+	# ends in `… & exec docker-entrypoint.sh`, and `&` binds looser than
+	# `&&`, so an `&&` join would put the CA install inside the backgrounded
+	# list and race mitmproxy's start. Running it as its own statement keeps
+	# it synchronous, and the explicit exit keeps it fail-loud: a broken
+	# mount halts the container instead of starting with unpatched trust.
+	local ca_install='cp /upstream-ca/*.crt /usr/local/share/ca-certificates/ && update-ca-certificates >/dev/null && cat /upstream-ca/*.crt >> "$(python3 -c '"'"'import certifi; print(certifi.where())'"'"')"'
+	local new_entrypoint="${ca_install} || exit 1; ${existing_entrypoint}"
+	new_entrypoint="$new_entrypoint" yq -i \
+		'.services.mitmproxy.entrypoint = ["/bin/sh", "-c", strenv(new_entrypoint), "sh"]' \
+		"$compose_file"
 }
