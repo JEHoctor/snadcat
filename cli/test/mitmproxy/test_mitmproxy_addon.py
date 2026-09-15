@@ -15,6 +15,7 @@ import importlib
 import json
 import os
 import re
+import shlex
 import sys
 import types
 from pathlib import Path
@@ -279,6 +280,75 @@ class TestNetworkRules:
         ]
         assert addon._is_request_allowed(None, "api.github.com.") is True
         assert addon._is_request_allowed("GET", "api.github.com.") is True
+
+
+# ---------------------------------------------------------------------------
+# Network presets — {"preset": "<name>"} expansion (issue #2).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("addon_cls", ADDONS)
+class TestNetworkPresets:
+    def test_preset_expands_to_allow_rules(self, addon_cls):
+        addon = addon_cls()
+        addon._load_network_rules([{"preset": "python"}])
+        assert {"action": "allow", "host": "pypi.org"} in addon.network_rules
+        assert all(r["action"] == "allow" for r in addon.network_rules)
+        assert addon._is_request_allowed("GET", "files.pythonhosted.org") is True
+        # default deny still applies outside the preset
+        assert addon._is_request_allowed("GET", "example.com") is False
+
+    def test_preset_expands_in_place_preserving_rule_order(self, addon_cls):
+        # A deny BEFORE the preset must shadow a host the preset would allow.
+        addon = addon_cls()
+        addon._load_network_rules([
+            {"action": "deny", "host": "pypi.org"},
+            {"preset": "python"},
+            {"action": "allow", "host": "example.com", "method": "GET"},
+        ])
+        assert addon._is_request_allowed("GET", "pypi.org") is False
+        assert addon._is_request_allowed("GET", "files.pythonhosted.org") is True
+        assert addon._is_request_allowed("GET", "example.com") is True
+
+    def test_unknown_preset_fails_loud(self, addon_cls):
+        addon = addon_cls()
+        with pytest.raises(RuntimeError, match="unknown network preset 'no-such'"):
+            addon._load_network_rules([{"preset": "no-such"}])
+
+    def test_preset_combined_with_other_keys_is_rejected(self, addon_cls):
+        addon = addon_cls()
+        with pytest.raises(RuntimeError, match="must not combine 'preset'"):
+            addon._load_network_rules([{"preset": "python", "method": "GET"}])
+
+    def test_rules_without_preset_pass_through_unchanged(self, addon_cls):
+        addon = addon_cls()
+        rules = [
+            {"action": "allow", "host": "*", "method": "GET"},
+            {"action": "deny", "host": "*"},
+        ]
+        addon._load_network_rules(list(rules))
+        assert addon.network_rules == rules
+
+    def test_every_defined_preset_expands(self, addon_cls):
+        # Guards the definitions themselves: non-empty host lists, and every
+        # name expands without error so a typo in NETWORK_PRESETS can't ship.
+        addon = addon_cls()
+        for name, hosts in common.NETWORK_PRESETS.items():
+            assert hosts, f"preset {name!r} has an empty host list"
+            addon._load_network_rules([{"preset": name}])
+            assert len(addon.network_rules) == len(hosts)
+
+    def test_stack_names_have_matching_presets(self, addon_cls):
+        # `sandcat init --stacks` names double as preset names (PR2 seeds
+        # them into project settings) — keep the two namespaces in sync.
+        stacks_bash = (
+            Path(__file__).resolve().parents[2] / "lib" / "stacks.bash"
+        ).read_text()
+        m = re.search(r"STACK_NAMES=\(([^)]*)\)", stacks_bash)
+        assert m, "STACK_NAMES not found in cli/lib/stacks.bash"
+        for stack in m.group(1).split():
+            assert stack in common.NETWORK_PRESETS, (
+                f"stack {stack!r} has no matching network preset"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -594,10 +664,10 @@ class TestCursorStreaming:
 
 
 # ---------------------------------------------------------------------------
-# Cursor-specific: Basic Auth substitution.
+# Basic Auth substitution (common across agents post-#85).
 # ---------------------------------------------------------------------------
 
-class TestCursorBasicAuth:
+class TestBasicAuth:
     @staticmethod
     def _make_addon():
         addon = CursorAddon()
@@ -660,8 +730,8 @@ class TestCursorBasicAuth:
         assert replaced is False
         assert result == "Bearer abc"
 
-    def test_claude_does_not_touch_basic_auth(self):
-        """Base addon never inspects Basic Auth payloads."""
+    def test_claude_also_substitutes_basic_auth(self):
+        """ClaudeAddon inherits the common Basic Auth substitution (see #85)."""
         import base64
 
         encoded = base64.b64encode(b"user:SANDCAT_PLACEHOLDER_API_KEY").decode("ascii")
@@ -679,8 +749,8 @@ class TestCursorBasicAuth:
             headers={"authorization": f"Basic {encoded}"},
         )
         addon.request(flow)
-        # Claude leaves the encoded payload untouched (placeholder hidden inside base64).
-        assert flow.request.headers["authorization"] == f"Basic {encoded}"
+        new_encoded = flow.request.headers["authorization"].split(" ", 1)[1]
+        assert base64.b64decode(new_encoded) == b"user:real-pass"
 
 
 # ---------------------------------------------------------------------------
@@ -896,8 +966,8 @@ class TestConfigLoading:
              patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
             addon.load(MagicMock())
         content = env_path.read_text()
-        assert 'export A="SANDCAT_PLACEHOLDER_A"' in content
-        assert 'export B="SANDCAT_PLACEHOLDER_B"' in content
+        assert "export A=SANDCAT_PLACEHOLDER_A" in content
+        assert "export B=SANDCAT_PLACEHOLDER_B" in content
 
     def test_env_vars_written_to_placeholders_env(self, addon_cls, tmp_path):
         settings = {
@@ -912,9 +982,9 @@ class TestConfigLoading:
              patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
             addon.load(MagicMock())
         content = env_path.read_text()
-        assert 'export GIT_USER_NAME="Alice"' in content
-        assert 'export GIT_USER_EMAIL="alice@example.com"' in content
-        assert 'export K="SANDCAT_PLACEHOLDER_K"' in content
+        assert "export GIT_USER_NAME=Alice" in content
+        assert "export GIT_USER_EMAIL=alice@example.com" in content
+        assert "export K=SANDCAT_PLACEHOLDER_K" in content
 
     def test_env_vars_partial(self, addon_cls, tmp_path):
         settings = {"env": {"EDITOR": "vim"}}
@@ -926,7 +996,7 @@ class TestConfigLoading:
              patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
             addon.load(MagicMock())
         content = env_path.read_text()
-        assert 'export EDITOR="vim"' in content
+        assert "export EDITOR=vim" in content
 
     def test_missing_env_section_omits_vars(self, addon_cls, tmp_path):
         settings = {"secrets": {"K": {"value": "v", "hosts": []}}}
@@ -938,16 +1008,17 @@ class TestConfigLoading:
              patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
             addon.load(MagicMock())
         content = env_path.read_text()
-        assert content.startswith('export K=')
+        assert "# names: K" in content
+        assert "export K=SANDCAT_PLACEHOLDER_K" in content
 
 
 # ---------------------------------------------------------------------------
-# Shell escaping — applies regardless of variant.
+# Env value quoting — applies regardless of variant.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("addon_cls", ADDONS)
-class TestShellEscaping:
-    def test_double_quotes_escaped(self, addon_cls, tmp_path):
+class TestEnvValueQuoting:
+    def test_double_quotes_preserved_via_quoting(self, addon_cls, tmp_path):
         settings = {"env": {"X": 'val"ue'}}
         p = tmp_path / "settings.json"
         p.write_text(json.dumps(settings))
@@ -957,9 +1028,9 @@ class TestShellEscaping:
              patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
             addon.load(MagicMock())
         content = env_path.read_text()
-        assert 'export X="val\\"ue"' in content
+        assert "export X='val\"ue'" in content
 
-    def test_backslashes_escaped(self, addon_cls, tmp_path):
+    def test_backslashes_preserved_via_quoting(self, addon_cls, tmp_path):
         settings = {"env": {"X": "a\\b"}}
         p = tmp_path / "settings.json"
         p.write_text(json.dumps(settings))
@@ -969,9 +1040,9 @@ class TestShellEscaping:
              patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
             addon.load(MagicMock())
         content = env_path.read_text()
-        assert 'export X="a\\\\b"' in content
+        assert "export X='a\\b'" in content
 
-    def test_dollar_and_backtick_escaped(self, addon_cls, tmp_path):
+    def test_dollar_and_backtick_preserved_via_quoting(self, addon_cls, tmp_path):
         settings = {"env": {"X": "$(rm -rf /)`cmd`"}}
         p = tmp_path / "settings.json"
         p.write_text(json.dumps(settings))
@@ -981,23 +1052,116 @@ class TestShellEscaping:
              patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
             addon.load(MagicMock())
         content = env_path.read_text()
-        assert 'export X="\\$(rm -rf /)\\`cmd\\`"' in content
+        assert "export X='$(rm -rf /)`cmd`'" in content
+        # Round-trip is the real contract: what a shell would actually see
+        # when it sources sandcat.env. The hostile value must come back
+        # byte-for-byte, not just "look quoted" in the raw file text.
+        line = next(l for l in content.splitlines() if l.startswith("export X="))
+        assert shlex.split(line) == ["export", "X=$(rm -rf /)`cmd`"]
 
 
-class TestShellEscapingStaticHelpers:
-    """Static helpers live in the shared library; both variants reuse them."""
+class TestShlexEnvQuoting:
+    """`_write_placeholders_env` quotes via ``shlex.quote``; lock its properties
+    directly (shared by both addon variants — inherited, not overridden)."""
 
-    def test_newlines_escaped(self):
-        assert BaseAddon._shell_escape("line1\nline2") == "line1\\nline2"
+    @staticmethod
+    def _write(tmp_path, value):
+        addon = BaseAddon()
+        addon.env = {"X": value}
+        env_path = tmp_path / "sandcat.env"
+        with patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
+            addon._write_placeholders_env()
+        return env_path.read_text()
 
-    def test_plain_values_unchanged(self):
-        assert BaseAddon._shell_escape("hello world") == "hello world"
-        assert BaseAddon._shell_escape("sk-ant-abc123") == "sk-ant-abc123"
+    @staticmethod
+    def _strip_header(content):
+        """Drop the leading `# names: ...` header, returning the export
+        line(s) verbatim — including any embedded literal newlines, so
+        multi-line values still round-trip through shlex.split correctly."""
+        _, _, rest = content.partition("\n")
+        return rest
+
+    def test_safe_value_emitted_bare(self, tmp_path):
+        content = self._write(tmp_path, "sk-ant-abc123")
+        assert self._strip_header(content) == "export X=sk-ant-abc123\n"
+
+    def test_value_with_spaces_single_quoted(self, tmp_path):
+        content = self._write(tmp_path, "hello world")
+        line = self._strip_header(content).rstrip("\n")
+        assert line == "export X='hello world'"
+        assert shlex.split(line) == ["export", "X=hello world"]
+
+    def test_embedded_single_quote_round_trips(self, tmp_path):
+        value = "it's a test"
+        content = self._write(tmp_path, value)
+        assert shlex.split(self._strip_header(content)) == ["export", f"X={value}"]
+
+    def test_literal_newline_preserved(self, tmp_path):
+        # Regression: the old hand-rolled escaper turned a real newline into
+        # the two-character sequence "\n", corrupting the value. shlex.quote
+        # single-quotes it instead, keeping the newline byte-for-byte.
+        value = "line1\nline2"
+        content = self._write(tmp_path, value)
+        assert shlex.split(self._strip_header(content)) == ["export", f"X={value}"]
+
+    def test_exclamation_quoted(self, tmp_path):
+        content = self._write(tmp_path, "hello!")
+        line = self._strip_header(content).rstrip("\n")
+        assert line == "export X='hello!'"
+        assert shlex.split(line) == ["export", "X=hello!"]
+
+    def test_empty_value_quoted(self, tmp_path):
+        content = self._write(tmp_path, "")
+        line = self._strip_header(content).rstrip("\n")
+        assert line == "export X=''"
+        assert shlex.split(line) == ["export", "X="]
 
     def test_helpers_inherited_by_variants(self):
-        # Sanity: subclasses inherit the same helper from the base.
-        assert ClaudeAddon._shell_escape == BaseAddon._shell_escape
-        assert CursorAddon._shell_escape == BaseAddon._shell_escape
+        # Sanity: subclasses inherit the shared env writer from the base.
+        assert ClaudeAddon._write_placeholders_env == BaseAddon._write_placeholders_env
+        assert CursorAddon._write_placeholders_env == BaseAddon._write_placeholders_env
+
+
+# ---------------------------------------------------------------------------
+# names-only header — app-init.sh parses this instead of grepping `export`
+# lines, so a multi-line value's continuation line (which can itself start
+# with "export ", since shlex.quote preserves literal newlines) can never
+# miscount vars or leak a value fragment into the startup log (#19 review).
+# ---------------------------------------------------------------------------
+
+class TestSandcatEnvNamesHeader:
+    def test_header_lists_names_only_no_values(self, tmp_path):
+        addon = BaseAddon()
+        # A hostile multi-line value whose continuation line itself looks
+        # like an `export` statement — the exact shape that broke the old
+        # grep-based app-init.sh parsing.
+        addon.env = {"GIT_USER_NAME": "line1\nexport EVIL=leaked\nline3"}
+        addon.secrets = {
+            "API_KEY": {
+                "value": "irrelevant",
+                "hosts": [],
+                "placeholder": "SANDCAT_PLACEHOLDER_API_KEY",
+            }
+        }
+        env_path = tmp_path / "sandcat.env"
+        with patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
+            addon._write_placeholders_env()
+        content = env_path.read_text()
+        lines = content.splitlines()
+
+        header = lines[0]
+        assert header == "# names: GIT_USER_NAME API_KEY"
+
+        # No fragment of the hostile value leaked into the header.
+        for fragment in ("EVIL", "leaked", "line1", "line3"):
+            assert fragment not in header
+
+        # The header is the only comment line in the file — app-init.sh's
+        # `head -n 1` + prefix match must not be fooled by a later line that
+        # happens to start with "#" (none should exist here, but this locks
+        # the invariant the parser depends on).
+        comment_lines = [l for l in lines if l.startswith("#")]
+        assert comment_lines == [header]
 
 
 # ---------------------------------------------------------------------------
@@ -1141,7 +1305,89 @@ class TestOpSecretResolution:
             addon.load(MagicMock())
         assert addon.secrets["API_KEY"]["value"] == "resolved-secret"
         content = env_path.read_text()
-        assert 'export API_KEY="SANDCAT_PLACEHOLDER_API_KEY"' in content
+        assert "export API_KEY=SANDCAT_PLACEHOLDER_API_KEY" in content
+
+    def test_secret_uses_default_placeholder_when_not_specified(self, addon_cls, tmp_path):
+        """No `placeholder` field → placeholder defaults to SANDCAT_PLACEHOLDER_<NAME>."""
+        settings = {"secrets": {
+            "FOO": {"op": "op://vault/item/field", "hosts": []},
+        }}
+        p = tmp_path / "settings.json"
+        p.write_text(json.dumps(settings))
+        env_path = tmp_path / "sandcat.env"
+        addon = addon_cls()
+        with patch(f"{_COMMON}.SETTINGS_PATHS", [str(p)]), \
+             patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)), \
+             patch(f"{_COMMON}.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="real-token\n", stderr="")
+            addon.load(MagicMock())
+        assert addon.secrets["FOO"]["placeholder"] == "SANDCAT_PLACEHOLDER_FOO"
+
+    def test_secret_honors_custom_placeholder_field(self, addon_cls, tmp_path):
+        """`placeholder` field in settings overrides the default SANDCAT_PLACEHOLDER_<NAME>."""
+        settings = {"secrets": {
+            "FOO": {"op": "op://vault/item/field", "hosts": [], "placeholder": "gho_SANDCAT_PLACEHOLDER_FOO"},
+        }}
+        p = tmp_path / "settings.json"
+        p.write_text(json.dumps(settings))
+        env_path = tmp_path / "sandcat.env"
+        addon = addon_cls()
+        with patch(f"{_COMMON}.SETTINGS_PATHS", [str(p)]), \
+             patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)), \
+             patch(f"{_COMMON}.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="real-token\n", stderr="")
+            addon.load(MagicMock())
+        assert addon.secrets["FOO"]["placeholder"] == "gho_SANDCAT_PLACEHOLDER_FOO"
+
+    def test_secret_falls_back_to_default_when_placeholder_is_not_string(self, addon_cls, tmp_path):
+        """`placeholder` field that is not a string is rejected with a warning; default is used."""
+        settings = {"secrets": {
+            "FOO": {"op": "op://vault/item/field", "hosts": [], "placeholder": 42},
+        }}
+        p = tmp_path / "settings.json"
+        p.write_text(json.dumps(settings))
+        env_path = tmp_path / "sandcat.env"
+        addon = addon_cls()
+        with patch(f"{_COMMON}.SETTINGS_PATHS", [str(p)]), \
+             patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)), \
+             patch(f"{_COMMON}.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="real-token\n", stderr="")
+            addon.load(MagicMock())
+        assert addon.secrets["FOO"]["placeholder"] == "SANDCAT_PLACEHOLDER_FOO"
+
+    def test_secret_falls_back_to_default_when_placeholder_lacks_marker(self, addon_cls, tmp_path):
+        """`placeholder` field that lacks 'SANDCAT_PLACEHOLDER_' is rejected with a warning; default is used."""
+        settings = {"secrets": {
+            "FOO": {"op": "op://vault/item/field", "hosts": [], "placeholder": "GET"},
+        }}
+        p = tmp_path / "settings.json"
+        p.write_text(json.dumps(settings))
+        env_path = tmp_path / "sandcat.env"
+        addon = addon_cls()
+        with patch(f"{_COMMON}.SETTINGS_PATHS", [str(p)]), \
+             patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)), \
+             patch(f"{_COMMON}.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="real-token\n", stderr="")
+            addon.load(MagicMock())
+        assert addon.secrets["FOO"]["placeholder"] == "SANDCAT_PLACEHOLDER_FOO"
+
+    def test_secret_honors_valid_prefixed_placeholder(self, addon_cls, tmp_path):
+        """A custom placeholder that contains 'SANDCAT_PLACEHOLDER_' (e.g. with a gho_ prefix) is accepted."""
+        settings = {"secrets": {
+            "COPILOT_GITHUB_TOKEN": {
+                "value": "real-token",
+                "hosts": [],
+                "placeholder": "gho_SANDCAT_PLACEHOLDER_COPILOT_GITHUB_TOKEN",
+            },
+        }}
+        p = tmp_path / "settings.json"
+        p.write_text(json.dumps(settings))
+        env_path = tmp_path / "sandcat.env"
+        addon = addon_cls()
+        with patch(f"{_COMMON}.SETTINGS_PATHS", [str(p)]), \
+             patch(f"{_COMMON}.SANDCAT_ENV_PATH", str(env_path)):
+            addon.load(MagicMock())
+        assert addon.secrets["COPILOT_GITHUB_TOKEN"]["placeholder"] == "gho_SANDCAT_PLACEHOLDER_COPILOT_GITHUB_TOKEN"
 
     def test_op_failure_logs_warning_and_continues(self, addon_cls, tmp_path):
         settings = {"secrets": {
@@ -2221,7 +2467,7 @@ class TestCursorDebugFlag:
             addon.load(MagicMock())
         written = env_path.read_text()
         assert "SANDCAT_MITM_DEBUG" not in written
-        assert 'export GIT_USER_NAME="dev"' in written
+        assert "export GIT_USER_NAME=dev" in written
 
     def test_debug_logs_to_stderr_on_request(self, tmp_path, monkeypatch, capsys):
         monkeypatch.delenv("SANDCAT_MITM_DEBUG", raising=False)

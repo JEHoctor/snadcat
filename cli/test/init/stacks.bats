@@ -54,6 +54,18 @@ teardown() {
 	refute_output --partial "openjdk"
 }
 
+@test "Dockerfile installs the Java profile instead of .bashrc hooks" {
+	local dockerfile="$SCT_TEMPLATEDIR/devcontainer/Dockerfile.app"
+	local app_init="$SCT_TEMPLATEDIR/devcontainer/sandcat/scripts/app-init.sh"
+	run grep -F 'COPY --chmod=644 sandcat/scripts/java-env.sh /etc/profile.d/sandcat-java.sh' "$dockerfile"
+	assert_success
+	run grep -F '. /etc/profile.d/sandcat-java.sh' "$app_init"
+	assert_success
+
+	run grep -F '# sandcat-java-env' "$dockerfile"
+	assert_failure
+}
+
 @test "stack_extension returns extension ID for stacks with extensions" {
 	run stack_extension python
 	assert_output "ms-python.python"
@@ -82,6 +94,19 @@ teardown() {
 
 @test "stack_extension returns empty for node" {
 	run stack_extension node
+	assert_output ""
+}
+
+@test "stack_env_entries returns uv TLS config for python" {
+	run stack_env_entries python
+	assert_output "UV_SYSTEM_CERTS=1"
+}
+
+@test "stack_env_entries returns empty for stacks without env contributions" {
+	run stack_env_entries node
+	assert_output ""
+
+	run stack_env_entries java
 	assert_output ""
 }
 
