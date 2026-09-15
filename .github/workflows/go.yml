@@ -1,0 +1,44 @@
+name: Go CLI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Check formatting
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "gofmt needed on:"; echo "$out"; exit 1
+          fi
+
+      - run: go vet ./...
+
+      # The parity tests shell out to the bash originals under cli/ and to
+      # Mike Farah's yq; both are present on ubuntu-latest, but verify so a
+      # silent skip can't be mistaken for a pass.
+      - name: Verify parity tooling
+        run: |
+          yq --version | grep -q mikefarah
+          jq --version
+
+      - run: go test ./...
+
+      # End-to-end: sandcat init through both CLIs across the option matrix,
+      # diffing the generated project and home trees. Must stay at 27/27 until
+      # the bash tree is removed (GO-PORT-PLAN.md §4.1, step 6e).
+      - name: Differential harness
+        run: |
+          go build -o sandcat ./cmd/sandcat
+          scripts/difftest.sh
