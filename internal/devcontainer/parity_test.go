@@ -210,6 +210,10 @@ func TestGenerateMatchesBash(t *testing.T) {
 	add("rtk/off", func(c *matrixCase) { c.rtk = false })
 	add("rtk/off/codex", func(c *matrixCase) { c.rtk = false; c.agent = "codex" })
 	add("toggles/no-claude-config", func(c *matrixCase) { c.env = map[string]string{"SANDCAT_MOUNT_CLAUDE_CONFIG": "false"} })
+	add("toggles/no-copilot-config", func(c *matrixCase) {
+		c.agent = "copilot"
+		c.env = map[string]string{"SANDCAT_MOUNT_COPILOT_CONFIG": "false"}
+	})
 	add("toggles/git-ro+no-cache", func(c *matrixCase) {
 		c.stacks = []string{"java"}
 		c.env = map[string]string{"SANDCAT_MOUNT_GIT_READONLY": "true", "SANDCAT_MOUNT_SHARED_CACHE": "false"}

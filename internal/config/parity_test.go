@@ -107,7 +107,7 @@ func must(t *testing.T, err error) {
 
 func TestCreateUserSettingsMatchesBash(t *testing.T) {
 	requireBashTooling(t)
-	for _, agent := range []string{"claude", "cursor", "codex"} {
+	for _, agent := range []string{"claude", "cursor", "codex", "copilot"} {
 		t.Run(agent, func(t *testing.T) {
 			want := bashUserSettings(t, "",
 				`create_user_settings `+agent+`; sct_agent_post_user_settings_hook `+agent)

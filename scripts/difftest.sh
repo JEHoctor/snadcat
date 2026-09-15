@@ -79,7 +79,7 @@ run_case() {
 	fi
 }
 
-for agent in claude cursor codex; do
+for agent in claude cursor codex copilot; do
 	for ide in vscode jetbrains none; do
 		run_case "$agent-$ide" -- --agent "$agent" --ide "$ide" --stacks "" --features "" --secret-provider none
 	done

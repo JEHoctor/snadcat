@@ -31,7 +31,7 @@ mkdir -p "$agents_dir" "$rtk_dir"
 # Only multi-line blocks are dumped to files. Single-token values (extension
 # ids, env var names, one-line help strings) stay as Go constants, where they
 # are easier to read and review than a directory of one-line files.
-for agent in claude cursor codex; do
+for agent in $(sct_available_agents); do
 	# The agent halves are captured with rtk disabled so the Go side can
 	# compose agent + rtk itself and be tested on each half independently.
 	SANDCAT_RTK=false sct_agent_docker_install_block "$agent" \

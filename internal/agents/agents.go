@@ -122,6 +122,23 @@ var all = []Agent{
 			}
 		},
 	},
+	copilot,
+}
+
+var copilot = Agent{
+	Name:            "copilot",
+	MountEnvVar:     "SANDCAT_MOUNT_COPILOT_CONFIG",
+	VSCodeExtension: "GitHub.copilot",
+	APIKeyHelp:      `COPILOT_GITHUB_TOKEN  fine-grained GitHub PAT with "Copilot Requests" permission (or $(gh auth token))`,
+	OpAPIKeyHelp:    `COPILOT_GITHUB_TOKEN  "op": "op://vault/GitHub Copilot Token/credential"`,
+	MitmAddonFile:   "mitmproxy_addon_copilot.py",
+	MitmHTTP2:       "true",
+	hostPaths: func(string) []HostPath {
+		return []HostPath{
+			{".copilot/mcp-config.json", false},
+			{".copilot/session-state", true},
+		}
+	},
 }
 
 var byName = func() map[string]Agent {

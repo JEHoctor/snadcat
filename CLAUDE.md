@@ -37,8 +37,8 @@ port's Milestone 6b (see below), not by merging `master` wholesale.
   go test ./...
   go build -o sandcat ./cmd/sandcat && scripts/difftest.sh   # end-to-end; needs bash, yq, jq (no docker)
   ```
-  `difftest.sh` runs `sandcat init` through both CLIs across 30 option combinations under
-  pinned `HOME`s and diffs both the project and home trees. It must stay at 30/30 until
+  `difftest.sh` runs `sandcat init` through both CLIs across 33 option combinations under
+  pinned `HOME`s and diffs both the project and home trees. It must stay at 33/33 until
   bash is removed.
 - The binary on `PATH` (`~/.local/bin/sandcat`) is the *upstream bash* checkout under
   `~/Projects/tools/sandcat`, not this repo. Use `./sandcat` (built above) or `go run

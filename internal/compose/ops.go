@@ -109,6 +109,15 @@ func (f *File) AddAgentConfigVolumes(a agents.Agent, active bool, projectName st
 			"${HOME}/.codex/skills:/home/vscode/.codex/skills:ro",
 			"${HOME}/.codex/commands:/home/vscode/.codex/commands:ro",
 		}
+	case "copilot":
+		heading = "Host Copilot MCP config (optional)"
+		// session-state is read-write: Copilot CLI persists chat session
+		// events there and fails with EROFS on every prompt otherwise. Same
+		// trust posture as the other host-mounted agent data.
+		entries = []string{
+			"${HOME}/.copilot/mcp-config.json:/home/vscode/.copilot/mcp-config.json:ro",
+			"${HOME}/.copilot/session-state:/home/vscode/.copilot/session-state:rw",
+		}
 	case "cursor":
 		heading = "Host Cursor config (optional)"
 		// projects/<id> is workspace-scoped and read-write; chats/, plugins/
