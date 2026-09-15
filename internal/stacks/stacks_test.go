@@ -105,3 +105,14 @@ func TestExtensionsSkipStacksWithout(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
+
+// Only python contributes environment today (uv's TLS opt-in); a stray entry
+// from another stack would land in every generated compose file.
+func TestEnvEntries(t *testing.T) {
+	if got := EnvEntries([]string{"python", "go"}); !reflect.DeepEqual(got, []string{"UV_SYSTEM_CERTS=1"}) {
+		t.Errorf("got %v", got)
+	}
+	if got := EnvEntries([]string{"node", "java", "rust"}); got != nil {
+		t.Errorf("unexpected env from non-python stacks: %v", got)
+	}
+}

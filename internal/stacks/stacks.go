@@ -38,6 +38,9 @@ type Stack struct {
 	// Deps are stacks pulled in transitively by this one.
 	Deps []string
 
+	// Env are KEY=value entries the stack needs on the agent service.
+	Env []string
+
 	// SharedCaches are the dependency caches this stack contributes.
 	SharedCaches []CacheVolume
 }
@@ -58,7 +61,12 @@ var jvmCaches = []CacheVolume{
 // presents stacks in this order, so it is part of the user-visible surface.
 var all = []Stack{
 	{Name: "node", DevboxPackages: []string{"nodejs"}},
-	{Name: "python", DevboxPackages: []string{"python@latest"}, Extension: "ms-python.python"},
+	// uv bundles its own root CA store and ignores the system trust store by
+	// default, so it fails TLS verification against mitmproxy's intercepting
+	// CA. UV_SYSTEM_CERTS (uv >= 0.11.0) fixes that; the older UV_NATIVE_TLS
+	// is deprecated since 0.11.9 and prints a warning, so only the new one is
+	// set.
+	{Name: "python", DevboxPackages: []string{"python@latest"}, Extension: "ms-python.python", Env: []string{"UV_SYSTEM_CERTS=1"}},
 	{Name: "java", DevboxPackages: []string{"temurin-bin-25@latest"}, Extension: "redhat.java", SharedCaches: jvmCaches},
 	{Name: "rust", DevboxPackages: []string{"rustc@latest", "cargo@latest"}, Extension: "rust-lang.rust-analyzer"},
 	{Name: "go", DevboxPackages: []string{"go@latest"}, Extension: "golang.go"},
@@ -164,6 +172,16 @@ func Extensions(resolved []string) []string {
 		if e := byName[n].Extension; e != "" {
 			out = append(out, e)
 		}
+	}
+	return out
+}
+
+// EnvEntries returns the KEY=value environment entries contributed by the
+// given resolved stacks, in order.
+func EnvEntries(resolved []string) []string {
+	var out []string
+	for _, n := range resolved {
+		out = append(out, byName[n].Env...)
 	}
 	return out
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/jehoctor/snadcat/internal/compose"
 	"github.com/jehoctor/snadcat/internal/devbox"
 	"github.com/jehoctor/snadcat/internal/log"
+	"github.com/jehoctor/snadcat/internal/stacks"
 )
 
 // Options configure one generation of a project's .devcontainer directory.
@@ -74,6 +75,15 @@ func Generate(o Options) error {
 		return err
 	}
 
+	// Stack-contributed environment lands before the agent's, matching the
+	// bash call order (customize_compose_stack_environment runs first).
+	composePath := filepath.Join(dir, "compose-all.yml")
+	cf, err := compose.Load(composePath)
+	if err != nil {
+		return err
+	}
+	cf.MergeAgentEnvironment(stacks.EnvEntries(o.Stacks))
+
 	// Agent-specific placeholders across four files.
 	a := o.Agent
 	if err := editFile(jsonPath, func(s string) string {
@@ -127,12 +137,7 @@ func Generate(o Options) error {
 	}
 
 	// compose-all.yml: agent environment, mounts, project name.
-	composePath := filepath.Join(dir, "compose-all.yml")
-	cf, err := compose.Load(composePath)
-	if err != nil {
-		return err
-	}
-	cf.SetAgentEnvironment(a.ComposeEnvironment)
+	cf.MergeAgentEnvironment(a.ComposeEnvironment)
 	mounts := o.Mounts
 	mounts.SettingsFile = "../" + filepath.ToSlash(o.SettingsFile)
 	mounts.Agent = a
