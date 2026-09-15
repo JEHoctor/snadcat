@@ -5,8 +5,10 @@ binary. Branched from `main` at `c16d8fd`.
 
 **Status:** Milestones 1–5 complete. Every command is implemented;
 `scripts/difftest.sh` shows 27/27 `init` configurations byte-identical to the
-bash CLI across both the project and home trees. Milestone 6 (cutover) is
-pending a decision on the docker/podman branch — see §6.
+bash CLI across both the project and home trees. Milestone 6 was re-planned on
+2026-09-14 as a sequence that keeps the bash tree alive as the oracle through
+the upstream sync and the podman rework — see §4.1. Next step: 6a, land this
+branch in the fork.
 
 **Drivers** (in priority order, per the decision to do a full rewrite rather
 than an incremental command-by-command migration):
@@ -223,9 +225,65 @@ onward — a clean differential run.
 | 3 | **Generation** | `internal/devbox`, `internal/devcontainer`, `internal/compose`. This is where §3.1 lives. Golden files for every template output |
 | 4 | **`init`** | `internal/config` + the `init` command: flags, prompts, orchestration, next-steps output. Differential harness goes green across the option matrix |
 | 5 | **Docker commands** | `internal/dockercli` + `run`, `compose`, `attach`, `destroy`, `proxy`, `restart-proxy`, `cache`, `edit` |
-| 6 | **Cutover** | Delete `cli/` bash + bats submodules, move templates under `internal/`, goreleaser config, rewrite `install.sh` as a download-and-verify script, update README |
+| 6 | **Landing** | See §4.1 — replaces the original single "cutover" step |
 
 Milestones 2 and 3 are independent and could be parallelized; 4 depends on both.
+
+### 4.1 Milestone 6, revised: land first, remove bash last
+
+The original plan had one big cutover that deleted `cli/` immediately. That is
+the wrong order, decided 2026-09-14. The bash tree is the *oracle* — every
+parity test and `scripts/difftest.sh` run against it — and the two pieces of
+work still queued (an upstream sync and the podman engine) are exactly the
+kind of change the oracle exists to catch. So bash stays until both are done.
+This is not upstreaming work; the fork is the home for it.
+
+| Step | What | Gate |
+|---|---|---|
+| 6a | **Land `go-port` in the fork** with bash and Go coexisting: bash under `cli/`, Go under `cmd/` + `internal/`, templates still at `cli/templates/`. Add CI running `go test ./...` and `scripts/difftest.sh`. | PR merged; CI green |
+| 6b | **Sync upstream into the bash tree.** `tools/sandcat` is at `9f779f6`, 23 commits past our base `c16d8fd`; 22 files / ~900 lines touch `cli/lib`, `cli/libexec`, `cli/templates`. Merge `upstream/master`, re-run `scripts/dump-bash-blocks.sh`, then let the harness list every generated-file drift and port each one to Go. | difftest 27/27 again at the new base |
+| 6c | **Redo the podman engine work in Go**, using `claude/docker-podman-migration-pmipfa` as the reference (its `engine.bash` and netns templates), not by merging it. Template-side changes land in `cli/templates/` and flow through the embed; `engine.bash` becomes `internal/dockercli` growing an engine abstraction. | harness green with both engines |
+| 6d | **Release tooling and install story** — §4.2. Retire `install.sh`'s clone-the-tree model; README install section rewritten. | first tagged release installs cleanly on Linux/macOS/Windows |
+| 6e | **Remove bash.** Delete `cli/lib`, `cli/libexec`, `cli/bin`, the bats submodules and `scripts/difftest.sh`; move `cli/templates/` to `internal/templates/assets/` and fold `embed.go` into it. The bash-backed parity tests are written to skip when `cli/` is absent, so nothing else changes. Replace them with committed golden files owned by the Go tree. | `go test ./...` green with no bash on the machine |
+| 6f | **Relax byte parity** (only after 6e). Once no oracle demands it, the yq-shaped output is a liability: `stripBlankBeforeIndented`, the foot-comment rendering of disabled mounts, and `jsonfile`'s yq layout can all be reconsidered on their merits. Any such change regenerates the goldens deliberately. | — |
+
+6e and 6f are not scheduled; they happen when the bash tree stops earning its
+keep.
+
+### 4.2 Install and update story for a binary
+
+`install.sh` today clones the git tree and symlinks `cli/bin/sandcat`; updates
+are `git pull`. None of that survives a binary, and the decision is to not
+carry a `curl | sh` installer forward at all unless demand appears.
+
+Tiers, in the order they should be built. Everything downstream consumes the
+first one.
+
+1. **GitHub Releases via goreleaser.** Cross-compiled archives per OS/arch,
+   `checksums.txt`, version stamped through `-ldflags -X …/internal/version.Version`.
+   This is the only tier that has to exist for the first release.
+2. **`go install github.com/jehoctor/snadcat/cmd/sandcat@latest`** — free once
+   the module builds, and what Go-literate users reach for first. Note it
+   yields an unstamped binary; `version` falls back to the VCS build info, which
+   is fine.
+3. **Package managers goreleaser publishes natively:** Homebrew tap, winget
+   manifest, Scoop, Snap, AUR, `nfpm` deb/rpm, and a Docker image. One config,
+   one CI job. This is where "updating" lives: the user's package manager does
+   it, and sandcat never needs a self-updater (which would fight the package
+   manager anyway).
+4. **PyPI and npm** are wrapper packages, not ports: a per-platform wheel that
+   contains the release binary (the `ruff`/`uv` pattern), and an npm package
+   whose `postinstall` fetches the matching binary from Releases. Both are
+   built *from* tier 1 artifacts. Worth doing because they reach users who
+   have `pip`/`npm` but no Homebrew.
+5. **Flatpak is a poor fit** and should be last, if ever: sandcat's whole job
+   is driving the host's docker/podman socket, which is what Flatpak's sandbox
+   exists to prevent. It would need `--filesystem=host` and socket holes that
+   defeat the format.
+
+Two small things the binary should grow to make this work well:
+`sandcat version --check` (compare against the latest release tag; print a
+hint, never download), and a documented `SANDCAT_NO_UPDATE_CHECK` opt-out.
 
 ---
 
@@ -263,19 +321,15 @@ that's what the bats-mock tests currently cover.
 
 ## 6. Risks and open items
 
-- **The docker/podman work on another branch conflicts with this.**
-  `claude/docker-podman-migration-pmipfa` carries ~1,400 lines not on `main`,
-  including a whole `cli/lib/engine.bash` container-engine abstraction and a
-  `wg-client` → network-namespace migration in the templates. Porting from
-  `main` means that work has to be re-applied to the Go tree by hand. Worth
-  deciding early whether to land that branch on `main` first and rebase this
-  port onto it — the longer both run, the more expensive the reconciliation.
-  (The template-side changes are unaffected; it is `engine.bash` and the
-  compose/proxy template edits that would need redoing.)
-- **`install.sh` is 10KB of behavior** (atomic swap, `SANDCAT_REF` pinning,
-  `SANDCAT_HOME`/`SANDCAT_BIN_DIR` overrides, non-interactive mode, PATH hints).
-  The replacement must keep the documented env-var surface or the README's
-  install section breaks for existing users.
+- ~~**The docker/podman work on another branch conflicts with this.**~~
+  Decided 2026-09-14: the branch is *not* merged. It is redone in Go as step
+  6c, with the bash branch as the reference, after the upstream sync (6b). Its
+  `engine.bash` maps onto an engine abstraction in `internal/dockercli`; its
+  template changes land in `cli/templates/` and flow through the embed.
+- ~~**`install.sh` is 10KB of behavior.**~~ Retired rather than replaced —
+  §4.2. Its env-var surface (`SANDCAT_REF`, `SANDCAT_HOME`, `SANDCAT_BIN_DIR`)
+  describes a clone-the-tree install that a binary makes meaningless. The
+  README's install section is rewritten in 6d, not preserved.
 - ~~**Byte-for-byte YAML parity may not be fully reachable** in yaml.v3.~~
   Retired in Milestone 3 — see §3.1. Parity holds across the option matrix,
   including quoting of `${HOME}` entries and the em-dashes in template
