@@ -70,3 +70,16 @@ func TestStackExtensionLines(t *testing.T) {
 		t.Errorf("no-extension stacks should yield empty, got %q", got)
 	}
 }
+
+func TestCustomizePlugins(t *testing.T) {
+	in := "\t\t\t\"plugins\": [],\n"
+	got := CustomizePlugins(in, []string{"java", "python", "scala"})
+	want := "\t\t\t\"plugins\": [\"PythonCore\", \"org.intellij.scala\"],\n"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	// Stacks with bundled language support leave the empty array alone.
+	if got := CustomizePlugins(in, []string{"node", "java"}); got != in {
+		t.Errorf("expected no change, got %q", got)
+	}
+}

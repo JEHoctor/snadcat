@@ -35,6 +35,15 @@ type Stack struct {
 	// Extension is the VS Code extension id, empty when the stack has none.
 	Extension string
 
+	// JetBrainsPlugin is the Marketplace plugin id Gateway installs into the
+	// backend IDE, empty when language support is bundled (node, java), the
+	// primary JetBrains IDE is a standalone product with no IntelliJ plugin
+	// (dotnet → Rider, rust → RustRover), or none exists.
+	//
+	// go and ruby are gated behind Ultimate; on a Community backend Gateway
+	// silently skips them.
+	JetBrainsPlugin string
+
 	// Deps are stacks pulled in transitively by this one.
 	Deps []string
 
@@ -66,14 +75,14 @@ var all = []Stack{
 	// CA. UV_SYSTEM_CERTS (uv >= 0.11.0) fixes that; the older UV_NATIVE_TLS
 	// is deprecated since 0.11.9 and prints a warning, so only the new one is
 	// set.
-	{Name: "python", DevboxPackages: []string{"python@latest"}, Extension: "ms-python.python", Env: []string{"UV_SYSTEM_CERTS=1"}},
+	{Name: "python", DevboxPackages: []string{"python@latest"}, Extension: "ms-python.python", Env: []string{"UV_SYSTEM_CERTS=1"}, JetBrainsPlugin: "PythonCore"},
 	{Name: "java", DevboxPackages: []string{"temurin-bin-25@latest"}, Extension: "redhat.java", SharedCaches: jvmCaches},
 	{Name: "rust", DevboxPackages: []string{"rustc@latest", "cargo@latest"}, Extension: "rust-lang.rust-analyzer"},
-	{Name: "go", DevboxPackages: []string{"go@latest"}, Extension: "golang.go"},
-	{Name: "scala", DevboxPackages: []string{"scala@latest", "sbt@latest", "scala-cli@latest"}, Extension: "scalameta.metals", Deps: []string{"java"}},
-	{Name: "ruby", DevboxPackages: []string{"ruby@latest"}, Extension: "shopify.ruby-lsp"},
+	{Name: "go", DevboxPackages: []string{"go@latest"}, Extension: "golang.go", JetBrainsPlugin: "org.jetbrains.plugins.go"},
+	{Name: "scala", DevboxPackages: []string{"scala@latest", "sbt@latest", "scala-cli@latest"}, Extension: "scalameta.metals", Deps: []string{"java"}, JetBrainsPlugin: "org.intellij.scala"},
+	{Name: "ruby", DevboxPackages: []string{"ruby@latest"}, Extension: "shopify.ruby-lsp", JetBrainsPlugin: "org.jetbrains.plugins.ruby"},
 	{Name: "dotnet", DevboxPackages: []string{"dotnet-sdk@latest"}, Extension: "ms-dotnettools.csdevkit"},
-	{Name: "zig", DevboxPackages: []string{"zig@latest"}, Extension: "ziglang.vscode-zig"},
+	{Name: "zig", DevboxPackages: []string{"zig@latest"}, Extension: "ziglang.vscode-zig", JetBrainsPlugin: "com.falsepattern.zigbrains"},
 }
 
 var byName = func() map[string]Stack {
@@ -182,6 +191,18 @@ func EnvEntries(resolved []string) []string {
 	var out []string
 	for _, n := range resolved {
 		out = append(out, byName[n].Env...)
+	}
+	return out
+}
+
+// JetBrainsPlugins returns the non-empty Marketplace plugin ids for the given
+// stacks, in order.
+func JetBrainsPlugins(resolved []string) []string {
+	var out []string
+	for _, n := range resolved {
+		if p := byName[n].JetBrainsPlugin; p != "" {
+			out = append(out, p)
+		}
 	}
 	return out
 }

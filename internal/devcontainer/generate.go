@@ -157,6 +157,14 @@ func Generate(o Options) error {
 	}); err != nil {
 		return err
 	}
+	// Plugins go in after CustomizeJSON has emitted the JetBrains block.
+	if o.IDE == "jetbrains" && len(o.Stacks) > 0 {
+		if err := editFile(jsonPath, func(s string) string {
+			return CustomizePlugins(s, o.Stacks)
+		}); err != nil {
+			return err
+		}
+	}
 
 	log.Info("Devcontainer dir created at %s", ".devcontainer")
 	return nil
