@@ -103,6 +103,7 @@ func Generate(o Options) error {
 			Pair{"__AGENT_MITM_ADDON__", a.MitmAddonFile},
 			Pair{"__MITM_HTTP2__", a.MitmHTTP2},
 			Pair{"__AGENT_MITM_STREAMING_FLAGS__", a.MitmStreamingFlags},
+			Pair{"__MITMPROXY_VERSION__", compose.MitmproxyVersion},
 		)
 	}); err != nil {
 		return err
