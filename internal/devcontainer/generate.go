@@ -23,6 +23,10 @@ type Options struct {
 	// e.g. ".sandcat/settings.json".
 	SettingsFile string
 
+	// UserSettings is the absolute path of ~/.config/sandcat/settings.json,
+	// read for upstream_ca_bundles. Empty means none configured there.
+	UserSettings string
+
 	Agent agents.Agent
 	IDE   string
 
@@ -120,7 +124,8 @@ func Generate(o Options) error {
 	}
 
 	// compose-proxy.yml structural edits.
-	if o.ProxyTUI || (o.SecretProvider != "" && o.SecretProvider != compose.SecretProviderNone) {
+	bundles := compose.ReadUpstreamCABundles(o.UserSettings, o.ProjectPath)
+	if o.ProxyTUI || (o.SecretProvider != "" && o.SecretProvider != compose.SecretProviderNone) || len(bundles) > 0 {
 		proxy, err := compose.Load(proxyPath)
 		if err != nil {
 			return err
@@ -129,6 +134,9 @@ func Generate(o Options) error {
 			proxy.SetProxyTUIMode()
 		}
 		if err := proxy.ApplySecretProvider(o.SecretProvider); err != nil {
+			return err
+		}
+		if err := proxy.ApplyUpstreamCABundles(bundles); err != nil {
 			return err
 		}
 		if err := proxy.Save(proxyPath); err != nil {

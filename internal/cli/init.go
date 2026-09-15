@@ -106,10 +106,15 @@ func newInitDevcontainerCmd() *cobra.Command {
 			mounts := compose.DefaultOptions()
 			mounts.Agent = agent
 			mounts.ApplyEnvOverrides(os.LookupEnv)
+			userSettings, err := config.UserSettingsPath()
+			if err != nil {
+				return err
+			}
 			return devcontainer.Generate(devcontainer.Options{
 				ProjectPath:    abs,
 				ProjectName:    name,
 				SettingsFile:   settingsFile,
+				UserSettings:   userSettings,
 				Agent:          agent,
 				IDE:            ide,
 				Stacks:         strings.Fields(stacksArg),

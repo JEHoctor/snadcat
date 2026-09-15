@@ -240,10 +240,15 @@ func Run(o Options) error {
 		// The feature wins over the environment, as the bash's export did.
 		mounts.MountSharedCache = false
 	}
+	userSettings, err := config.UserSettingsPath()
+	if err != nil {
+		return err
+	}
 	if err := devcontainer.Generate(devcontainer.Options{
 		ProjectPath:    projectPath,
 		ProjectName:    name,
 		SettingsFile:   settingsRel,
+		UserSettings:   userSettings,
 		Agent:          agent,
 		IDE:            ide,
 		Stacks:         resolved,
