@@ -1,10 +1,14 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/jehoctor/snadcat/internal/log"
 )
 
 // Parity with the user-settings functions in cli/libexec/init/init. HOME is
@@ -206,14 +210,72 @@ func goUserSettingsNoRead(t *testing.T, seed string, run func()) {
 	run()
 }
 
-func TestWriteProjectSettingsCopiesTemplate(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".sandcat", "settings.json")
-	must(t, WriteProjectSettings(path))
-	got, err := os.ReadFile(path)
+// The settings step: plain copy, strict-network rewrite (which goes through
+// `yq -o=json` and so reformats), and the settings.local.json scaffold.
+func TestWriteProjectSettingsMatchesBash(t *testing.T) {
+	requireBashTooling(t)
+	old := log.Out
+	log.Out = &bytes.Buffer{}
+	t.Cleanup(func() { log.Out = old })
+
+	tests := []struct {
+		name   string
+		strict bool
+		stacks []string
+	}{
+		{"default", false, nil},
+		{"strict no stacks", true, nil},
+		{"strict python+java", true, []string{"python", "java"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			bashDir := t.TempDir()
+			args := []string{}
+			if tc.strict {
+				args = append(args, "--strict-network", "--stacks", strings.Join(tc.stacks, " "))
+			}
+			args = append(args, filepath.Join(bashDir, ".sandcat", "settings.json"), "claude")
+			cmd := exec.Command(repoPath(t, "cli/libexec/init/settings"), args...)
+			cmd.Env = append(os.Environ(),
+				"SCT_LIBDIR="+repoPath(t, "cli/lib"),
+				"SCT_TEMPLATEDIR="+repoPath(t, "cli/templates"))
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("bash settings: %v\n%s", err, out)
+			}
+
+			goDir := t.TempDir()
+			must(t, WriteProjectSettings(filepath.Join(goDir, ".sandcat", "settings.json"),
+				ProjectSettingsOptions{StrictNetwork: tc.strict, Stacks: tc.stacks}))
+
+			for _, name := range []string{"settings.json", "settings.local.json"} {
+				want, err := os.ReadFile(filepath.Join(bashDir, ".sandcat", name))
+				must(t, err)
+				got, err := os.ReadFile(filepath.Join(goDir, ".sandcat", name))
+				must(t, err)
+				if string(got) != string(want) {
+					t.Errorf("%s differs\n--- bash ---\n%s\n--- go ---\n%s", name, want, got)
+				}
+			}
+		})
+	}
+}
+
+// settings.local.json holds real credentials and must survive a re-init.
+func TestWriteProjectSettingsKeepsExistingLocal(t *testing.T) {
+	old := log.Out
+	log.Out = &bytes.Buffer{}
+	t.Cleanup(func() { log.Out = old })
+
+	dir := filepath.Join(t.TempDir(), ".sandcat")
+	must(t, os.MkdirAll(dir, 0o755))
+	local := filepath.Join(dir, "settings.local.json")
+	const existing = `{"secrets":{"X":{"value":"real"}}}` + "\n"
+	must(t, os.WriteFile(local, []byte(existing), 0o644))
+
+	must(t, WriteProjectSettings(filepath.Join(dir, "settings.json"), ProjectSettingsOptions{}))
+	b, err := os.ReadFile(local)
 	must(t, err)
-	want, err := os.ReadFile(repoPath(t, "cli/templates/settings.json"))
-	must(t, err)
-	if string(got) != string(want) {
-		t.Error("project settings differ from the template")
+	if string(b) != existing {
+		t.Errorf("settings.local.json was overwritten: %q", b)
 	}
 }
