@@ -1,0 +1,92 @@
+USER root
+# Prep /nix owned by vscode. Single-user Nix (which we need — see below)
+# requires a user-writable /nix.
+RUN mkdir -m 0755 /nix && chown vscode /nix
+# Install devbox launcher. The installer writes /usr/local/bin/devbox as
+# mode 711 (root:root, no read bit for others). It's a bash launcher, not
+# a native binary, so bash can't read the shebang as non-root and exec
+# fails with EACCES. Force 0755 so vscode can execute it.
+RUN curl -fsSL https://get.jetify.com/devbox | bash -s -- -f \
+    && chmod 0755 /usr/local/bin/devbox
+
+USER vscode
+# Preinstall Nix in single-user mode BEFORE devbox gets a chance.
+# `devbox global install` on a fresh system triggers Determinate's
+# `nix-installer`, which defaults to multi-user (systemd-managed daemon)
+# whenever sudo is available. Containers based on debian have sudo but
+# no systemd, so the daemon never starts, and later `nix` commands fail
+# with "cannot connect to socket at /nix/var/nix/daemon-socket/socket"
+# and "opening lock file /nix/var/nix/db/big-lock: Permission denied".
+# The classic nixos.org installer with --no-daemon reliably yields a
+# single-user install that works under vscode's UID.
+RUN curl -fsSL -L https://nixos.org/nix/install \
+    | sh -s -- --no-daemon --no-modify-profile --yes
+ENV PATH="/home/vscode/.nix-profile/bin:${PATH}"
+
+# Split into two layers so the common case (user drops a tool into
+# devbox.tools.json) doesn't invalidate the expensive stack install.
+#
+# Layer A — stack packages only. Cached whenever devbox.stack.json is
+# unchanged. This is the ~11-minute step on a cold build; keeping it
+# out of the same COPY as devbox.tools.json lets a tools-only edit
+# skip it entirely.
+COPY --chown=vscode:vscode devbox.stack.json /home/vscode/.local/share/devbox/global/default/devbox.json
+RUN --mount=type=cache,target=/home/vscode/.cache/nix,uid=1000,gid=1000 \
+    . /home/vscode/.nix-profile/etc/profile.d/nix.sh \
+ && devbox global install
+
+# Layer B — merge stack + user tools, install the delta, and bump the
+# Nix priority of tools entries so they win file collisions against stack
+# entries (e.g. tools' openjdk17 wins over stack's temurin-bin-25 for
+# bin/java). /nix/store from Layer A carries over via the image filesystem,
+# so devbox here only downloads what's new in the merged config.
+#
+# Tools override behavior:
+#   * Same package name (jq): the merge drops stack's entry; tools' entry
+#     is the only one devbox installs. No priority bump needed.
+#   * Cross-family collision (openjdk17 vs temurin-bin-25): merge keeps
+#     both; devbox installs both; then we snapshot which manifest entries
+#     appeared in this layer (tools additions) and re-add each of their
+#     store paths with --priority 3. Nix priority-based collision then
+#     picks the priority-3 entry, and the sandcat Java block resolves
+#     JAVA_HOME through bin/java to the tools JDK.
+#
+# devbox.loc[k] is the optional-file COPY idiom: picks up a committed
+# devbox.lock without failing when absent.
+COPY --chown=vscode:vscode devbox.stack.json devbox.tools.json /tmp/
+COPY --chown=vscode:vscode devbox.loc[k] /home/vscode/.local/share/devbox/global/default/
+RUN --mount=type=cache,target=/home/vscode/.cache/nix,uid=1000,gid=1000 \
+    NIX_PROFILE=$HOME/.local/share/devbox/global/default/.devbox/nix/profile/default \
+ && jq -r '[.. | .storePaths? // empty] | flatten | .[]' $NIX_PROFILE/manifest.json \
+    | sort -u > /tmp/paths.before.txt \
+ && jq -s 'def pkgname: split("@")[0]; (.[1].packages // []) as $tools | ($tools | map(pkgname)) as $tnames | {packages: (((.[0].packages // []) | map(select(pkgname as $n | $tnames | index($n) | not))) + $tools | unique)}' /tmp/devbox.stack.json /tmp/devbox.tools.json \
+    > /home/vscode/.local/share/devbox/global/default/devbox.json \
+ && . /home/vscode/.nix-profile/etc/profile.d/nix.sh \
+ && devbox global install \
+ && jq -r '[.. | .storePaths? // empty] | flatten | .[]' $NIX_PROFILE/manifest.json \
+    | sort -u > /tmp/paths.after.txt \
+ && comm -23 /tmp/paths.after.txt /tmp/paths.before.txt > /tmp/tools-paths.txt \
+ && while IFS= read -r storepath; do \
+      [ -n "$storepath" ] || continue; \
+      nix --extra-experimental-features "nix-command flakes" \
+          profile add --priority 3 --profile $NIX_PROFILE "$storepath"; \
+    done < /tmp/tools-paths.txt \
+ && rm /tmp/devbox.stack.json /tmp/devbox.tools.json /tmp/paths.before.txt /tmp/paths.after.txt /tmp/tools-paths.txt
+
+# BuildKit --mount=type=cache above persists ~/.cache/nix (Nix's HTTP
+# cache for .nar downloads) between builds on the same host. First cold
+# build is unchanged (empty cache); subsequent stack changes reuse
+# already-downloaded .nar files. Not portable to CI without a persistent
+# cache action; harmless if absent (the RUN just downloads fresh).
+
+USER root
+# Hook packages into every shell via the sandcat profile.d sourcing
+# machinery (app-init.sh sources /etc/profile.d/sandcat-*.sh into login
+# shells and /etc/bash.bashrc). Source nix.sh first so `devbox` and
+# the packages it manages resolve.
+RUN printf '%s\n' \
+    '. /home/vscode/.nix-profile/etc/profile.d/nix.sh 2>/dev/null || true' \
+    'if command -v devbox >/dev/null 2>&1; then' \
+    '    eval "$(devbox global shellenv 2>/dev/null)" || true' \
+    'fi' > /etc/profile.d/sandcat-devbox.sh
+USER vscode
