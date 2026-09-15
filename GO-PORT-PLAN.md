@@ -58,7 +58,7 @@ README documents keeps working:
 ```
 sandcat init [settings|devcontainer]   sandcat cache [list|size|rm]
 sandcat run [--build] [-- cmd...]      sandcat edit [compose|dockerfile|project-settings|user-settings]
-sandcat compose <any docker args>      sandcat attach | destroy | proxy | restart-proxy | version
+sandcat compose <any docker args>      sandcat attach | destroy | proxy | restart | version
 ```
 
 Two dispatcher behaviors are load-bearing and must be reproduced deliberately,
