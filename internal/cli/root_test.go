@@ -191,7 +191,7 @@ func TestEveryModuleFromBashDispatcherExists(t *testing.T) {
 	// One entry per directory under cli/libexec.
 	modules := []string{
 		"attach", "cache", "compose", "destroy", "edit",
-		"init", "proxy", "restart-proxy", "run", "version",
+		"init", "proxy", "restart", "run", "version",
 	}
 	have := map[string]bool{}
 	for _, c := range NewRootCmd().Commands() {
@@ -201,5 +201,14 @@ func TestEveryModuleFromBashDispatcherExists(t *testing.T) {
 		if !have[m] {
 			t.Errorf("missing module command %q", m)
 		}
+	}
+}
+
+// restart-proxy was renamed upstream (#93); the old name stays as a hidden
+// deprecated alias so scripts keep working.
+func TestRestartProxyAliasIsHidden(t *testing.T) {
+	c := find(t, "restart-proxy")
+	if !c.Hidden || c.Deprecated == "" {
+		t.Error("restart-proxy should be a hidden, deprecated alias")
 	}
 }

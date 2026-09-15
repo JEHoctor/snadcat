@@ -109,6 +109,15 @@ func (f *File) AddAgentConfigVolumes(a agents.Agent, active bool, projectName st
 			"${HOME}/.codex/skills:/home/vscode/.codex/skills:ro",
 			"${HOME}/.codex/commands:/home/vscode/.codex/commands:ro",
 		}
+	case "copilot":
+		heading = "Host Copilot MCP config (optional)"
+		// session-state is read-write: Copilot CLI persists chat session
+		// events there and fails with EROFS on every prompt otherwise. Same
+		// trust posture as the other host-mounted agent data.
+		entries = []string{
+			"${HOME}/.copilot/mcp-config.json:/home/vscode/.copilot/mcp-config.json:ro",
+			"${HOME}/.copilot/session-state:/home/vscode/.copilot/session-state:rw",
+		}
 	case "cursor":
 		heading = "Host Cursor config (optional)"
 		// projects/<id> is workspace-scoped and read-write; chats/, plugins/
@@ -188,7 +197,7 @@ func (f *File) AddSharedCacheVolumes(active bool, resolvedStacks []string) error
 			scalar("external"), {Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"},
 			scalar("name"), scalar(c.Volume),
 		}}
-		volumes.Content = append(volumes.Content, scalar(c.Volume), decl)
+		appendContent(volumes, scalar(c.Volume), decl)
 	}
 	return nil
 }
@@ -211,6 +220,12 @@ func (f *File) AddJetBrainsCapabilities() {
 		seq.Content = append(seq.Content, item)
 	}
 }
+
+// MitmproxyVersion pins the mitmproxy image used by generated compose files
+// (SCT_MITMPROXY_VERSION in constants.bash). It must stay equal to
+// MITMPROXY_VERSION in images/mitmproxy.env, which the image builds consume;
+// a contract test asserts the two match.
+const MitmproxyVersion = "12.2.3"
 
 // SecretProvider selects the mitmproxy image and the token it reads.
 type SecretProvider string
@@ -242,9 +257,9 @@ func (f *File) ApplySecretProvider(provider SecretProvider) error {
 	case SecretProviderNone, "":
 		return nil
 	case SecretProvider1Password:
-		image, token = "ghcr.io/virtuslab/sandcat-mitmproxy-op:latest", "OP_SERVICE_ACCOUNT_TOKEN"
+		image, token = "ghcr.io/virtuslab/sandcat-mitmproxy-op:"+MitmproxyVersion, "OP_SERVICE_ACCOUNT_TOKEN"
 	case SecretProviderProtonPass:
-		image, token = "ghcr.io/virtuslab/sandcat-mitmproxy-pass:latest", "PROTON_PASS_PERSONAL_ACCESS_TOKEN"
+		image, token = "ghcr.io/virtuslab/sandcat-mitmproxy-pass:"+MitmproxyVersion, "PROTON_PASS_PERSONAL_ACCESS_TOKEN"
 	default:
 		return fmt.Errorf("unknown secret provider: %s", provider)
 	}
@@ -261,7 +276,7 @@ func (f *File) ApplySecretProvider(provider SecretProvider) error {
 		}
 	}
 	if !replaced {
-		mitmproxy.Content = append(mitmproxy.Content, scalar("environment"), env)
+		appendContent(mitmproxy, scalar("environment"), env)
 	}
 	return nil
 }
@@ -288,25 +303,19 @@ func (f *File) SetProxyTUIMode() {
 	f.delete("services", "mitmproxy", "ports")
 }
 
-// SetAgentEnvironment sets services.agent.environment.
+// MergeAgentEnvironment appends KEY=value entries to services.agent.environment,
+// keeping anything already there so agent- and stack-contributed variables
+// coexist regardless of call order.
 //
-// Skipped entirely when there are no entries: compose rejects an empty
-// `environment: {}` block, which is why the bash builds the array
-// conditionally rather than always emitting the key.
-func (f *File) SetAgentEnvironment(entries []string) {
+// A no-op with no entries: compose rejects an empty `environment: {}` block,
+// which is why the bash builds the array conditionally rather than always
+// emitting the key.
+func (f *File) MergeAgentEnvironment(entries []string) {
 	if len(entries) == 0 {
 		return
 	}
-	agent := ensure(f.root(), "services", "agent")
-	seq := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	seq := ensureSeq(f.root(), "services", "agent", "environment")
 	for _, e := range entries {
 		seq.Content = append(seq.Content, scalar(e))
 	}
-	for i := 0; i+1 < len(agent.Content); i += 2 {
-		if agent.Content[i].Value == "environment" {
-			agent.Content[i+1] = seq
-			return
-		}
-	}
-	agent.Content = append(agent.Content, scalar("environment"), seq)
 }

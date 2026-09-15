@@ -10,7 +10,7 @@ import (
 )
 
 func TestAvailableMatchesBashOrder(t *testing.T) {
-	want := []string{"claude", "cursor", "codex"}
+	want := []string{"claude", "cursor", "codex", "copilot"}
 	if got := Available(); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -22,7 +22,7 @@ func TestIsValid(t *testing.T) {
 			t.Errorf("%q should be valid", n)
 		}
 	}
-	for _, n := range []string{"", "copilot", "Claude"} {
+	for _, n := range []string{"", "gemini", "Claude"} {
 		if IsValid(n) {
 			t.Errorf("%q should not be valid", n)
 		}
@@ -65,7 +65,7 @@ func TestComposeEnvironment(t *testing.T) {
 	if want := []string{"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"}; !reflect.DeepEqual(claude.ComposeEnvironment, want) {
 		t.Errorf("got %v, want %v", claude.ComposeEnvironment, want)
 	}
-	for _, name := range []string{"cursor", "codex"} {
+	for _, name := range []string{"cursor", "codex", "copilot"} {
 		a, _ := Get(name)
 		if len(a.ComposeEnvironment) != 0 {
 			t.Errorf("%s should contribute no environment, got %v", name, a.ComposeEnvironment)

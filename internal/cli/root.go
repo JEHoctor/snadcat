@@ -40,6 +40,7 @@ func NewRootCmd() *cobra.Command {
 		newAttachCmd(),
 		newDestroyCmd(),
 		newProxyCmd(),
+		newRestartCmd(),
 		newRestartProxyCmd(),
 		newCacheCmd(),
 		newEditCmd(),

@@ -15,6 +15,7 @@ import (
 
 	sandcat "github.com/jehoctor/snadcat"
 	"github.com/jehoctor/snadcat/internal/jsonfile"
+	"github.com/jehoctor/snadcat/internal/log"
 )
 
 // UserDir returns the user config directory, ~/.config/sandcat.
@@ -200,9 +201,26 @@ func ConfiguredSecretProvider() string {
 	return ""
 }
 
-// WriteProjectSettings copies the project settings template to path,
-// creating parent directories.
-func WriteProjectSettings(path string) error {
+// ProjectSettingsOptions shape the project settings file `init` writes.
+type ProjectSettingsOptions struct {
+	// StrictNetwork replaces the template's allow-all-GET wildcard with one
+	// preset entry per stack. The names are expanded to concrete allow rules
+	// at proxy start by the mitmproxy addon, so the domain lists track the
+	// sandcat version instead of freezing in the project. With no stacks the
+	// list is empty: everything beyond the user-settings layer is denied.
+	StrictNetwork bool
+	// Stacks are the resolved stack names whose presets seed a strict policy.
+	Stacks []string
+}
+
+// WriteProjectSettings writes .sandcat/settings.json from the template and,
+// when missing, an empty settings.local.json next to it.
+//
+// The local file is the highest-precedence layer in the addon's settings
+// merge and is kept out of git by the Sandcat .gitignore block; unlike
+// settings.json it is never overwritten on re-init, since it is where users
+// put real credentials.
+func WriteProjectSettings(path string, o ProjectSettingsOptions) error {
 	b, err := fs.ReadFile(sandcat.Templates, "settings.json")
 	if err != nil {
 		return err
@@ -210,5 +228,41 @@ func WriteProjectSettings(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+
+	if o.StrictNetwork {
+		// The bash rewrites through `yq -o=json`, which reformats the whole
+		// document; going through jsonfile reproduces that layout.
+		v, err := jsonfile.Parse(b)
+		if err != nil {
+			return err
+		}
+		obj, ok := v.(*jsonfile.Object)
+		if !ok {
+			return fmt.Errorf("settings template is not an object")
+		}
+		presets := []any{}
+		for _, s := range o.Stacks {
+			p := jsonfile.NewObject()
+			p.Set("preset", s)
+			presets = append(presets, p)
+		}
+		obj.Set("network", presets)
+		if b, err = jsonfile.Encode(obj); err != nil {
+			return err
+		}
+	}
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		return err
+	}
+	log.Info("Settings file created at %s", path)
+
+	local := strings.TrimSuffix(path, ".json") + ".local.json"
+	if _, err := os.Stat(local); err == nil {
+		return nil
+	}
+	if err := os.WriteFile(local, []byte("{}\n"), 0o644); err != nil {
+		return err
+	}
+	log.Info("Local settings scaffold created at %s", local)
+	return nil
 }
