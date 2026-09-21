@@ -11,7 +11,7 @@ import (
 	"github.com/jehoctor/snadcat/internal/stacks"
 )
 
-// This file is the acceptance test for GO-PORT-PLAN.md §3.1: the Go compose
+// This file is the acceptance test for plans/2026-08-07-go-port.md §3.1: the Go compose
 // mutation must produce byte-identical output to the bash + yq pipeline it
 // replaces, comments and all.
 

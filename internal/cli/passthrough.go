@@ -11,7 +11,7 @@ import (
 // less verbatim. They all set DisableFlagParsing so cobra does not consume
 // flags meant for docker — `sandcat compose up --build` must not have --build
 // interpreted as a sandcat flag, and `sandcat compose --help` must reach docker
-// rather than printing sandcat's usage. See GO-PORT-PLAN.md §1.
+// rather than printing sandcat's usage. See plans/2026-08-07-go-port.md §1.
 
 // composeForCwd locates the project's compose file from the working directory.
 func composeForCwd() (dockercli.Compose, error) {

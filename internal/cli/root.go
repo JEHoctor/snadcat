@@ -13,7 +13,7 @@ import (
 // against libexec/<module>/<command>, with a `_` catch-all and a bare
 // <module> defaulting to the same-named command. The cobra tree below mirrors
 // that surface one-for-one so documented invocations keep working; see
-// GO-PORT-PLAN.md §1.
+// plans/2026-08-07-go-port.md §1.
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "sandcat",
