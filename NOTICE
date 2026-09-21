@@ -1,0 +1,8 @@
+sandcat
+Copyright 2026 VirtusLab (https://virtuslab.com)
+
+This fork (https://github.com/jehoctor/snadcat), including the Go rewrite
+of the CLI under cmd/ and internal/:
+Copyright 2026 James Hoctor
+
+Licensed under the Apache License, Version 2.0; see LICENSE.
