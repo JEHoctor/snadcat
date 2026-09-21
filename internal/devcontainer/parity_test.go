@@ -19,7 +19,7 @@ import (
 
 // Whole-tree parity with cli/libexec/init/devcontainer: every generated file
 // must be byte-identical across the option matrix. This is the differential
-// harness from GO-PORT-PLAN.md §5, scoped to the devcontainer step.
+// harness from plans/2026-08-07-go-port.md §5, scoped to the devcontainer step.
 
 func repoPath(t *testing.T, rel string) string {
 	t.Helper()

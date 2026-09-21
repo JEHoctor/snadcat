@@ -6,7 +6,7 @@
 // once. Node-level editing is required rather than incidental: the generated
 // files carry comments that users are expected to read and edit, and *disabled*
 // optional mounts are rendered as commented-out YAML inside a foot comment so
-// they can be switched on by uncommenting. See GO-PORT-PLAN.md §3.1.
+// they can be switched on by uncommenting. See plans/2026-08-07-go-port.md §3.1.
 //
 // yq is itself Go and built on yaml.v3, so with the encoder set to 2-space
 // indent the output is byte-identical to what the bash pipeline produced.

@@ -5,7 +5,7 @@
 // package under internal/ can reach cli/templates/. Keeping the templates in
 // place during the port means the bash CLI and the Go CLI read the same bytes,
 // which is what makes the differential harness a real parity oracle. At cutover
-// this moves to internal/templates/assets/. See GO-PORT-PLAN.md §2.
+// this moves to internal/templates/assets/. See plans/2026-08-07-go-port.md §2.
 package sandcat
 
 import (

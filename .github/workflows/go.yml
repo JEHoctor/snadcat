@@ -37,7 +37,7 @@ jobs:
 
       # End-to-end: sandcat init through both CLIs across the option matrix,
       # diffing the generated project and home trees. Must stay at 33/33 until
-      # the bash tree is removed (GO-PORT-PLAN.md §4.1, step 6e).
+      # the bash tree is removed (plans/2026-08-07-go-port.md §4.1, step 6e).
       - name: Differential harness
         run: |
           go build -o sandcat ./cmd/sandcat
