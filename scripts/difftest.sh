@@ -3,7 +3,7 @@
 # Go binary over a matrix of options, each under its own throwaway HOME and
 # project directory, and diffs everything either one wrote.
 #
-# This is the end-to-end parity oracle from GO-PORT-PLAN.md §5. The per-package
+# This is the end-to-end parity oracle from plans/2026-08-07-go-port.md §5. The per-package
 # parity tests cover each generator in isolation; this covers the whole init
 # flow including user settings, host config pre-creation, and .gitignore.
 #
