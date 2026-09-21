@@ -23,6 +23,13 @@ jobs:
             echo "gofmt needed on:"; echo "$out"; exit 1
           fi
 
+      # go.mod/go.sum must be exactly what tidy produces, so a dependency
+      # can't be left mislabelled as indirect or a stale sum linger.
+      - name: Check go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
       - run: go vet ./...
 
       # The parity tests shell out to the bash originals under cli/ and to
