@@ -1,0 +1,22 @@
+# Keeps the Go module graph and the pinned GitHub Actions current.
+#
+# Actions are pinned by commit SHA in the workflows (see go.yml); Dependabot
+# understands that form and bumps the SHA together with the version comment,
+# so pinning costs nothing in upkeep.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      go-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
