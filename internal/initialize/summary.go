@@ -30,7 +30,7 @@ func printSummary(s summary) {
 	if len(s.stacks) > 0 {
 		log.Info("  Stacks:           %s (devbox packages baked into .devcontainer/devbox.stack.json)", strings.Join(s.stacks, " "))
 	}
-	log.Info("  Devbox tools:     edit .devcontainer/devbox.tools.json to add packages, then rebuild (sandcat run --build)")
+	log.Info("  Devbox tools:     edit .devcontainer/devbox.tools.json to add packages, then rebuild (snadcat run --build)")
 	log.Info("  Devbox stack:     .devcontainer/devbox.stack.json is regenerated on every init from --stacks")
 	log.Info("  Project settings: %s/settings.json (network rules)", project.Dir)
 	log.Info("  User settings:    ~/.config/sandcat/settings.json (git identity, API keys)")
@@ -90,5 +90,5 @@ func printSummary(s summary) {
 		log.Info("    %s", s.agent.APIKeyHelp)
 		log.Info("    GITHUB_TOKEN       a GitHub personal access token (for git push, gh cli)")
 	}
-	log.Info("  Then run: sandcat run, or reopen the project using the dev container")
+	log.Info("  Then run: snadcat run, or reopen the project using the dev container")
 }

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	sandcat "github.com/jehoctor/snadcat"
+	snadcat "github.com/jehoctor/snadcat"
 	"github.com/jehoctor/snadcat/internal/agents"
 	"github.com/jehoctor/snadcat/internal/compose"
 	"github.com/jehoctor/snadcat/internal/devbox"
@@ -182,7 +182,7 @@ func Generate(o Options) error {
 // overwriting files that already exist. Executable bits are set on scripts
 // since embed does not carry modes.
 func copyTemplates(dir string) error {
-	sub, err := fs.Sub(sandcat.Templates, "devcontainer")
+	sub, err := fs.Sub(snadcat.Templates, "devcontainer")
 	if err != nil {
 		return err
 	}

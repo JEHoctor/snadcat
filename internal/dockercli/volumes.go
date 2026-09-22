@@ -55,7 +55,7 @@ func WarnStaleHomeVolume(d Docker, composeFile string) {
 	log.Warn("The agent image was rebuilt since the agent-home volume was created.")
 	log.Warn("Packages installed during the build may not be visible.")
 	log.Warn("To fix, stop containers and remove the volume:")
-	log.Warn("  sandcat compose down && docker volume rm %s", volume)
+	log.Warn("  snadcat compose down && docker volume rm %s", volume)
 }
 
 // parseDockerTime accepts the timestamp shapes docker inspect emits:

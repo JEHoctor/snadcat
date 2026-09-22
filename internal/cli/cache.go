@@ -49,8 +49,8 @@ func newCacheListCmd() *cobra.Command {
 			}
 			names := dockercli.CacheVolumeNames(d)
 			if len(names) == 0 {
-				fmt.Println("No sandcat shared-cache volumes on this host yet.")
-				fmt.Println("They are created lazily on the first `sandcat run`.")
+				fmt.Println("No snadcat shared-cache volumes on this host yet.")
+				fmt.Println("They are created lazily on the first `snadcat run`.")
 				return nil
 			}
 
@@ -143,7 +143,7 @@ func newCacheRmCmd() *cobra.Command {
 				for _, name := range targets {
 					fmt.Printf("  - %s\n", name)
 				}
-				fmt.Println("This affects every sandcat sandbox that mounts them.")
+				fmt.Println("This affects every snadcat sandbox that mounts them.")
 				old := prompt.Out
 				prompt.Out = os.Stdout // the bash prompts on stdout here
 				ok, err := prompt.YesNo("Continue?")

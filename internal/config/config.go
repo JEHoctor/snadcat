@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	sandcat "github.com/jehoctor/snadcat"
+	snadcat "github.com/jehoctor/snadcat"
 	"github.com/jehoctor/snadcat/internal/jsonfile"
 	"github.com/jehoctor/snadcat/internal/log"
 )
@@ -61,7 +61,7 @@ func CreateUserSettings(agent string) error {
 		return nil
 	}
 
-	tmpl, err := fs.ReadFile(sandcat.Templates, "settings-user-"+agent+".json")
+	tmpl, err := fs.ReadFile(snadcat.Templates, "settings-user-"+agent+".json")
 	if err != nil {
 		return fmt.Errorf("missing user settings template for agent '%s'", agent)
 	}
@@ -221,7 +221,7 @@ type ProjectSettingsOptions struct {
 // settings.json it is never overwritten on re-init, since it is where users
 // put real credentials.
 func WriteProjectSettings(path string, o ProjectSettingsOptions) error {
-	b, err := fs.ReadFile(sandcat.Templates, "settings.json")
+	b, err := fs.ReadFile(snadcat.Templates, "settings.json")
 	if err != nil {
 		return err
 	}

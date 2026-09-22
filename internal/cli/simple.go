@@ -99,7 +99,7 @@ func newProxyCmd() *cobra.Command {
 			}
 			url, err := c.OutputQuiet("port", "mitmproxy", "8081")
 			if err != nil || url == "" {
-				return fmt.Errorf("Proxy is not running. Start it first with: sandcat run or sandcat compose up -d")
+				return fmt.Errorf("Proxy is not running. Start it first with: snadcat run or snadcat compose up -d")
 			}
 			log.Info("mitmweb UI: http://%s (password: mitmproxy)", url)
 			return nil
@@ -163,14 +163,14 @@ func newRestartProxyCmd() *cobra.Command {
 	cmd := newRestartCmd()
 	cmd.Use = "restart-proxy"
 	cmd.Hidden = true
-	cmd.Deprecated = "use `sandcat restart`"
+	cmd.Deprecated = "use `snadcat restart`"
 	return cmd
 }
 
 func newEditCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit",
-		Short: "Open a Sandcat file in $VISUAL/$EDITOR",
+		Short: "Open a Snadcat file in $VISUAL/$EDITOR",
 	}
 
 	// The three plain editors just need a path that must already exist.
@@ -193,7 +193,7 @@ func newEditCmd() *cobra.Command {
 		{
 			use: "user-settings", short: "Edit ~/.config/sandcat/settings.json",
 			path:    config.UserSettingsPath,
-			missing: "No user settings file found: %s\nRun 'sandcat init' first to create it.",
+			missing: "No user settings file found: %s\nRun 'snadcat init' first to create it.",
 		},
 	} {
 		t := t
@@ -262,7 +262,7 @@ func newEditComposeCmd() *cobra.Command {
 			}
 			if noRestart || strings.EqualFold(os.Getenv("SANDCAT_NO_RESTART"), "true") {
 				log.Warn("Compose file was modified, and you have containers running.")
-				log.Warn("To pick up the changes and restart your containers, run: sandcat compose up -d")
+				log.Warn("To pick up the changes and restart your containers, run: snadcat compose up -d")
 				return nil
 			}
 			log.Info("Compose file was modified. Restarting containers...")

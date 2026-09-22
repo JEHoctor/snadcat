@@ -50,7 +50,7 @@ func FindComposeFile(start string) (string, error) {
 	}
 	path := filepath.Join(root, ComposeFile)
 	if _, err := os.Stat(path); err != nil {
-		return "", fmt.Errorf("no compose-all.yml found at %s — run `sandcat init` first", path)
+		return "", fmt.Errorf("no compose-all.yml found at %s — run `snadcat init` first", path)
 	}
 	return path, nil
 }

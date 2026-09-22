@@ -11,10 +11,10 @@
 set -euo pipefail
 
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-go_bin="${1:-$root/sandcat}"
+go_bin="${1:-$root/snadcat}"
 bash_bin="$root/cli/bin/sandcat"
 
-[[ -x "$go_bin" ]] || { echo "Go binary not found at $go_bin (go build -o sandcat ./cmd/sandcat)" >&2; exit 2; }
+[[ -x "$go_bin" ]] || { echo "Go binary not found at $go_bin (go build -o snadcat ./cmd/snadcat)" >&2; exit 2; }
 [[ -x "$bash_bin" ]] || { echo "bash CLI not found at $bash_bin" >&2; exit 2; }
 
 work="$(mktemp -d)"
