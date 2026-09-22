@@ -21,7 +21,7 @@ func newInitCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Initialize the Sandcat sandbox for a project",
+		Short: "Initialize the Snadcat sandbox for a project",
 		Args:  cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			// The bash distinguishes "flag absent" (prompt) from "flag
@@ -120,7 +120,7 @@ func newInitDevcontainerCmd() *cobra.Command {
 				Stacks:         strings.Fields(stacksArg),
 				ProxyTUI:       proxy == "tui",
 				SecretProvider: compose.SecretProvider(provider),
-				RTKEnabled:     os.Getenv("SANDCAT_RTK") != "false",
+				RTKEnabled:     os.Getenv("SNADCAT_RTK") != "false",
 				Mounts:         mounts,
 			})
 		},

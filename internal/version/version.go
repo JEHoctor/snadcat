@@ -22,7 +22,7 @@ import (
 var Version string
 
 // Name is the product label printed alongside the version.
-const Name = "Sandcat"
+const Name = "Snadcat"
 
 // String returns the version string, or "" when it cannot be determined.
 func String() string {

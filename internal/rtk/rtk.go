@@ -3,7 +3,7 @@
 // tokens per command.
 //
 // Default-on: the feature is enabled unless explicitly switched off, matching
-// SANDCAT_RTK's "anything but the literal string false" test.
+// SNADCAT_RTK's "anything but the literal string false" test.
 package rtk
 
 import (

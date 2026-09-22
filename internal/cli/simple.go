@@ -21,7 +21,7 @@ func newDestroyCmd() *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
 		Use:   "destroy",
-		Short: "Stop containers, remove volumes, and delete .devcontainer and .sandcat",
+		Short: "Stop containers, remove volumes, and delete .devcontainer and .snadcat",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			root, err := project.FindRoot(".")
@@ -99,7 +99,7 @@ func newProxyCmd() *cobra.Command {
 			}
 			url, err := c.OutputQuiet("port", "mitmproxy", "8081")
 			if err != nil || url == "" {
-				return fmt.Errorf("Proxy is not running. Start it first with: sandcat run or sandcat compose up -d")
+				return fmt.Errorf("Proxy is not running. Start it first with: snadcat run or snadcat compose up -d")
 			}
 			log.Info("mitmweb UI: http://%s (password: mitmproxy)", url)
 			return nil
@@ -163,14 +163,14 @@ func newRestartProxyCmd() *cobra.Command {
 	cmd := newRestartCmd()
 	cmd.Use = "restart-proxy"
 	cmd.Hidden = true
-	cmd.Deprecated = "use `sandcat restart`"
+	cmd.Deprecated = "use `snadcat restart`"
 	return cmd
 }
 
 func newEditCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit",
-		Short: "Open a Sandcat file in $VISUAL/$EDITOR",
+		Short: "Open a Snadcat file in $VISUAL/$EDITOR",
 	}
 
 	// The three plain editors just need a path that must already exist.
@@ -186,14 +186,14 @@ func newEditCmd() *cobra.Command {
 			missing: "No Dockerfile found: %s",
 		},
 		{
-			use: "project-settings", short: "Edit .sandcat/settings.json",
+			use: "project-settings", short: "Edit .snadcat/settings.json",
 			path:    func() (string, error) { return rootPath(project.Dir, "settings.json") },
 			missing: "No settings file found: %s",
 		},
 		{
-			use: "user-settings", short: "Edit ~/.config/sandcat/settings.json",
+			use: "user-settings", short: "Edit ~/.config/snadcat/settings.json",
 			path:    config.UserSettingsPath,
-			missing: "No user settings file found: %s\nRun 'sandcat init' first to create it.",
+			missing: "No user settings file found: %s\nRun 'snadcat init' first to create it.",
 		},
 	} {
 		t := t
@@ -260,9 +260,9 @@ func newEditComposeCmd() *cobra.Command {
 				log.Info("Compose file was modified.")
 				return nil
 			}
-			if noRestart || strings.EqualFold(os.Getenv("SANDCAT_NO_RESTART"), "true") {
+			if noRestart || strings.EqualFold(os.Getenv("SNADCAT_NO_RESTART"), "true") {
 				log.Warn("Compose file was modified, and you have containers running.")
-				log.Warn("To pick up the changes and restart your containers, run: sandcat compose up -d")
+				log.Warn("To pick up the changes and restart your containers, run: snadcat compose up -d")
 				return nil
 			}
 			log.Info("Compose file was modified. Restarting containers...")

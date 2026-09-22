@@ -30,10 +30,10 @@ func printSummary(s summary) {
 	if len(s.stacks) > 0 {
 		log.Info("  Stacks:           %s (devbox packages baked into .devcontainer/devbox.stack.json)", strings.Join(s.stacks, " "))
 	}
-	log.Info("  Devbox tools:     edit .devcontainer/devbox.tools.json to add packages, then rebuild (sandcat run --build)")
+	log.Info("  Devbox tools:     edit .devcontainer/devbox.tools.json to add packages, then rebuild (snadcat run --build)")
 	log.Info("  Devbox stack:     .devcontainer/devbox.stack.json is regenerated on every init from --stacks")
 	log.Info("  Project settings: %s/settings.json (network rules)", project.Dir)
-	log.Info("  User settings:    ~/.config/sandcat/settings.json (git identity, API keys)")
+	log.Info("  User settings:    ~/.config/snadcat/settings.json (git identity, API keys)")
 	log.Info("  Devcontainer:     .devcontainer/")
 	log.Info("  Gitignore:        %s", s.gitignoreStatus)
 	if s.rtkEnabled {
@@ -46,7 +46,7 @@ func printSummary(s summary) {
 		if len(s.stacks) > 0 {
 			presets = strings.Join(s.stacks, ", ")
 		}
-		log.Info("  Network:          strict — stack presets: %s (edit .sandcat/settings.json to allow more)", presets)
+		log.Info("  Network:          strict — stack presets: %s (edit .snadcat/settings.json to allow more)", presets)
 	} else {
 		log.Info("  Network:          default (allow all GET; tighten with --features strict-network)")
 	}
@@ -59,7 +59,7 @@ func printSummary(s summary) {
 
 	blank()
 	log.Info("Next steps:")
-	log.Info("  Edit ~/.config/sandcat/settings.json to add your API keys:")
+	log.Info("  Edit ~/.config/snadcat/settings.json to add your API keys:")
 	switch s.provider {
 	case "1password":
 		log.Info("    %s", s.agent.OpAPIKeyHelp)
@@ -70,7 +70,7 @@ func printSummary(s summary) {
 		log.Info("  1Password setup:")
 		log.Info("    1. Create a service account at https://my.1password.com/developer-tools/infrastructure-secrets/serviceaccount/")
 		log.Info("    2. Grant it read access to the vault(s) containing your secrets")
-		log.Info("    3. Add the token to ~/.config/sandcat/settings.json:")
+		log.Info("    3. Add the token to ~/.config/snadcat/settings.json:")
 		log.Info(`       "op_service_account_token": "ops_..."`)
 	case "protonpass":
 		log.Info("    %s", s.agent.APIKeyHelp)
@@ -83,12 +83,12 @@ func printSummary(s summary) {
 		log.Info(`         pass-cli pat access grant --pat-name "sandcat" \`)
 		log.Info(`           --vault-name "<YourVault>" --role viewer`)
 		log.Info(`       (or restrict to a single item with --item-title "<ItemName>")`)
-		log.Info("    3. Paste the printed pst_... token into ~/.config/sandcat/settings.json:")
+		log.Info("    3. Paste the printed pst_... token into ~/.config/snadcat/settings.json:")
 		log.Info(`         "proton_pass_token": "pst_..."`)
 		log.Info(`    4. Reference items with "pass": "pass://<YourVault>/<Item>/<field>"`)
 	default:
 		log.Info("    %s", s.agent.APIKeyHelp)
 		log.Info("    GITHUB_TOKEN       a GitHub personal access token (for git push, gh cli)")
 	}
-	log.Info("  Then run: sandcat run, or reopen the project using the dev container")
+	log.Info("  Then run: snadcat run, or reopen the project using the dev container")
 }

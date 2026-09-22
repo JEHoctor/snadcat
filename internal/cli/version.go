@@ -7,7 +7,7 @@ import (
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the Sandcat version",
+		Short: "Print the Snadcat version",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			// Root's PersistentPreRun skips the banner for this command, so

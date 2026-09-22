@@ -1,5 +1,5 @@
 // Package config ports the settings-file handling from cli/libexec/init/init
-// and cli/libexec/init/settings: the per-user ~/.config/sandcat/settings.json
+// and cli/libexec/init/settings: the per-user ~/.config/snadcat/settings.json
 // (git identity, API keys, secret-backend tokens) and the per-project
 // .sandcat/settings.json (network rules).
 package config
@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	sandcat "github.com/jehoctor/snadcat"
+	snadcat "github.com/jehoctor/snadcat"
 	"github.com/jehoctor/snadcat/internal/jsonfile"
 	"github.com/jehoctor/snadcat/internal/log"
 )
@@ -28,10 +28,10 @@ func UserDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".config", "sandcat"), nil
+	return filepath.Join(home, ".config", "snadcat"), nil
 }
 
-// UserSettingsPath returns ~/.config/sandcat/settings.json.
+// UserSettingsPath returns ~/.config/snadcat/settings.json.
 func UserSettingsPath() (string, error) {
 	dir, err := UserDir()
 	if err != nil {
@@ -49,7 +49,7 @@ var gitConfig = func(key string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// CreateUserSettings writes ~/.config/sandcat/settings.json from the agent's
+// CreateUserSettings writes ~/.config/snadcat/settings.json from the agent's
 // template if it does not already exist, seeding the git identity from the
 // host's global git config. An existing file is left untouched.
 func CreateUserSettings(agent string) error {
@@ -61,7 +61,7 @@ func CreateUserSettings(agent string) error {
 		return nil
 	}
 
-	tmpl, err := fs.ReadFile(sandcat.Templates, "settings-user-"+agent+".json")
+	tmpl, err := fs.ReadFile(snadcat.Templates, "settings-user-"+agent+".json")
 	if err != nil {
 		return fmt.Errorf("missing user settings template for agent '%s'", agent)
 	}
@@ -221,7 +221,7 @@ type ProjectSettingsOptions struct {
 // settings.json it is never overwritten on re-init, since it is where users
 // put real credentials.
 func WriteProjectSettings(path string, o ProjectSettingsOptions) error {
-	b, err := fs.ReadFile(sandcat.Templates, "settings.json")
+	b, err := fs.ReadFile(snadcat.Templates, "settings.json")
 	if err != nil {
 		return err
 	}
