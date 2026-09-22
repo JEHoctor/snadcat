@@ -2,7 +2,7 @@
 // makes. Nothing here talks to the daemon directly — the bash shells out to
 // the docker CLI, and so does this, which keeps behavior identical (including
 // contexts, credential helpers, and `docker compose` plugin resolution) and
-// avoids vendoring the Docker SDK.
+// avoids depending on the Docker SDK.
 package dockercli
 
 import (
