@@ -121,9 +121,62 @@ alone.
 | Today | Becomes |
 |---|---|
 | Edit `compose-all.yml`; uncomment optional mounts | **`.devcontainer/compose.user.yml`**, owned, created once as `services: {}` with a comment. Both the CLI wrapper (`docker compose -f compose-all.yml -f compose.user.yml`) and `devcontainer.json`'s `dockerComposeFile` list it unconditionally, so it can't be forgotten. Optional mounts become manifest toggles; the commented-out rendering goes away (which is also the single biggest source of yq-shaped complexity in the Go port). `sandcat edit compose` opens the overlay. |
-| Edit `Dockerfile.app` | **`.devcontainer/Dockerfile.user`**, owned, created once as a comment-only file; `Dockerfile.app` ends with a stage that `COPY`s and applies it (or `devbox.tools.json` already covers the package case — the overlay is for everything else). `sandcat edit dockerfile` opens the overlay. |
+| Edit `Dockerfile.app` | **`.devcontainer/Dockerfile.user`** plus **`.devcontainer/app-user-init.d/`**, owned — see §4.2.1. `sandcat edit dockerfile` opens the overlay. |
 | Edit `devcontainer.json` | `devcontainer.json` gains a documented **managed region** (extensions, settings) with the rest user-owned — or the same overlay idea via `customizations` merge. The JSONC-with-comments format makes a region the more honest choice. |
 | Edit `.sandcat/settings.json` | Becomes **owned with a managed key**: created once from the template; on re-init sandcat merges only the entries it owns (the stack presets under strict-network), never the user's rules. Template rules that exist to serve sandcat itself move into the addon's `NETWORK_PRESETS`, which strict-network already started. |
+
+#### 4.2.1 Software that is not in Nix
+
+`devbox.tools.json` covers the common case well, but there is **no mechanism
+at all** today for software outside nixpkgs — the corporate case: an internal
+CLI from Artifactory, a vendor SDK behind a login, an apt repo on the VPN.
+Every plausible hook was checked and none works:
+
+| Candidate | Why not |
+|---|---|
+| `sandcat edit dockerfile` | edits the generated file; gone on the next `init` |
+| `init_hook` / `scripts` in `devbox.tools.json` | silently dropped — the build-time jq merge keeps only `.packages` |
+| `devcontainer.json` `postCreateCommand` | absent from the template, and only the VS Code path would run it; `sandcat run` never does |
+| devcontainer *features* | not consumed — sandcat builds with plain `docker compose`, which does not process them |
+
+Two hooks, because they answer different questions:
+
+**`Dockerfile.user` — bake it into the image.** Created once as a commented
+stub. `Dockerfile.app` applies it as its own stage *after* the devbox layers,
+so an edit to the user hook never invalidates the ~11-minute Nix layer. Three
+rules the stub's comments must state, each learned the hard way elsewhere in
+the template:
+
+1. *Install to system paths* — `/usr/local`, `/opt` — never `$HOME`. The
+   `agent-home` volume masks `/home/vscode` at runtime; the agent installers
+   already say "installed system-wide so the volume can't mask the binary".
+   Anything that must live in `$HOME` has to be added to the snapshot list
+   that `app-init.sh` rsyncs, which is a sandcat-side change, not a user one.
+2. *Credentials via BuildKit secrets* — `RUN --mount=type=secret,id=…`, with
+   the secret declared under `build.secrets` in `compose.user.yml` (compose
+   merges it into sandcat's `compose-agent.yml` build stanza). Never `ARG`:
+   it lands in image history. Registry tokens are the whole reason this case
+   is hard, so the stub should show the pattern, not just permit it.
+3. *Build runs on the host network, not through mitmproxy.* That is how devbox
+   and the agent installers fetch today. It means the hook can reach internal
+   hosts over the corporate VPN — and that it is unproxied egress, which the
+   docs should say plainly rather than let users assume the sandbox applies.
+
+**`app-user-init.d/` — run it at container start, inside the sandbox.**
+Scripts sourced by `app-user-init.sh` as `vscode`, in sorted order, after
+sandcat's own steps. This is where `pip install` from an internal index or a
+`gh auth`-style login belongs: it runs through mitmproxy under the allowlist,
+so the internal index needs a rule in `settings.json`, and it can use secrets
+from `sandcat.env` the way the agents do. Idempotency is the script's problem
+— it runs on every start — and the stub says so.
+
+**Direction, not commitment: devcontainer features.** Features are exactly
+"an install script packaged as an OCI artifact", teams can publish internal
+ones, and they are cacheable. Consuming them means either running the
+devcontainer CLI for the build or reimplementing its feature-install step in
+the Dockerfile generation. Either is a larger change than the two hooks
+above, which cover the same ground for a single project; features become
+worth it when several projects want to share the same corporate install.
 
 ### 4.3 Small fixes that fall out
 
@@ -142,7 +195,8 @@ alone.
 | 4.1 manifest + `upgrade` | Go port landed | yes — additive, no existing file changes contract |
 | 4.3 destroy/merge/headers | 4.1 | yes |
 | 4.2 compose overlay + mount toggles | 4.1; **bash removed (6e)** — the commented-out mount rendering is what parity currently pins | no |
-| 4.2 Dockerfile overlay, devcontainer.json region, settings.json merge | 4.1 | each independently |
+| 4.2.1 `Dockerfile.user` + `app-user-init.d/` | 4.1; `compose.user.yml` for build secrets | yes, once the compose overlay exists |
+| 4.2 devcontainer.json region, settings.json merge | 4.1 | each independently |
 | §6 templating | 4.2 and 6f | no |
 
 The manifest can go in while the bash oracle is still alive: it writes a new
