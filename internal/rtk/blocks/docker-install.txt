@@ -3,5 +3,6 @@
 # agent-home volume can't mask the binary on upgrade. Disable at init
 # time with `sandcat init --features no-rtk` or `SANDCAT_RTK=false`.
 USER root
-RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | RTK_INSTALL_DIR=/usr/local/bin sh
+RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/b34be37caf3796b69a50952a28e60e32b5daad43/install.sh | \
+    RTK_INSTALL_DIR=/usr/local/bin RTK_VERSION=v0.45.0 sh
 USER vscode

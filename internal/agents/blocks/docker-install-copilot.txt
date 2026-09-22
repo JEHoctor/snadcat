@@ -1,0 +1,11 @@
+# Install Node.js 22 (Copilot CLI requires Node.js 20+).
+# NodeSource setup script is the shortest path to a current Node on the
+# vscode base image (Debian). Runs as root; USER is restored to vscode
+# before the block ends.
+USER root
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+# Install GitHub Copilot CLI.
+RUN npm install -g @github/copilot
+USER vscode

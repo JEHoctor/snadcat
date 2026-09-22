@@ -79,7 +79,7 @@ run_case() {
 	fi
 }
 
-for agent in claude cursor codex; do
+for agent in claude cursor codex copilot; do
 	for ide in vscode jetbrains none; do
 		run_case "$agent-$ide" -- --agent "$agent" --ide "$ide" --stacks "" --features "" --secret-provider none
 	done
@@ -97,7 +97,10 @@ run_case protonpass    -- --agent codex --ide vscode --stacks "" --features "" -
 run_case no-rtk        -- --agent claude --ide vscode --stacks "" --features no-rtk --secret-provider none
 run_case no-gitignore  -- --agent claude --ide vscode --stacks "" --features no-gitignore --secret-provider none
 run_case no-cache      -- --agent claude --ide vscode --stacks java --features no-shared-cache --secret-provider none
-run_case all-features  -- --agent cursor --ide jetbrains --stacks scala --features tui,no-shared-cache,no-gitignore,no-rtk --secret-provider protonpass
+run_case strict-net    -- --agent claude --ide vscode --stacks python,java --features strict-network --secret-provider none
+run_case strict-empty  -- --agent codex --ide none --stacks "" --features strict-network --secret-provider none
+run_case all-features  -- --agent cursor --ide jetbrains --stacks scala --features tui,no-shared-cache,no-gitignore,no-rtk,strict-network --secret-provider protonpass
+run_case env-strict    SANDCAT_STRICT_NETWORK=true -- --agent claude --ide jetbrains --stacks go --features "" --secret-provider none
 
 run_case env-git-ro    SANDCAT_MOUNT_GIT_READONLY=true -- --agent claude --ide vscode --stacks "" --features "" --secret-provider none
 run_case env-no-agent-cfg SANDCAT_MOUNT_CURSOR_CONFIG=false -- --agent cursor --ide vscode --stacks "" --features "" --secret-provider none

@@ -2,42 +2,64 @@ package sandcat
 
 import (
 	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-// The generated .devcontainer tree is copied wholesale from these files, so a
-// missing embed pattern would surface as a silently incomplete sandbox rather
-// than a build error. Assert the full expected set.
-func TestTemplatesAreEmbedded(t *testing.T) {
-	want := []string{
-		"settings.json",
-		"settings-user-claude.json",
-		"settings-user-codex.json",
-		"settings-user-cursor.json",
-		"devcontainer/compose-all.yml",
-		"devcontainer/devcontainer.json",
-		"devcontainer/Dockerfile.app",
-		"devcontainer/sandcat/compose-proxy.yml",
-		"devcontainer/sandcat/Dockerfile.wg-client",
-		"devcontainer/sandcat/tmux.conf",
-		"devcontainer/sandcat/scripts/app-init.sh",
-		"devcontainer/sandcat/scripts/app-post-start.sh",
-		"devcontainer/sandcat/scripts/app-user-init.sh",
-		"devcontainer/sandcat/scripts/dnsmasq-ready",
-		"devcontainer/sandcat/scripts/wg-client-init.sh",
-		"devcontainer/sandcat/scripts/mitmproxy_addon_common.py",
-		"devcontainer/sandcat/scripts/mitmproxy_addon_claude.py",
-		"devcontainer/sandcat/scripts/mitmproxy_addon_codex.py",
-		"devcontainer/sandcat/scripts/mitmproxy_addon_cursor.py",
-	}
-	for _, name := range want {
-		b, err := fs.ReadFile(Templates, name)
-		if err != nil {
-			t.Errorf("ReadFile(%q): %v", name, err)
-			continue
+// The generated .devcontainer tree is copied wholesale from the embedded
+// files, so an embed pattern that misses a file would surface as a silently
+// incomplete sandbox rather than a build error. Compare the embedded tree
+// against the on-disk template directory file-for-file, so a template added
+// upstream is covered the moment it lands rather than when someone remembers
+// to extend a list.
+func TestTemplatesMatchDisk(t *testing.T) {
+	onDisk := map[string][]byte{}
+	err := filepath.WalkDir("cli/templates", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
 		}
-		if len(b) == 0 {
-			t.Errorf("%q is empty", name)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel("cli/templates", p)
+		onDisk[filepath.ToSlash(rel)] = b
+		return nil
+	})
+	if err != nil {
+		t.Skipf("cli/templates not on disk (post-cutover?): %v", err)
+	}
+	if len(onDisk) == 0 {
+		t.Fatal("no template files found on disk")
+	}
+
+	embedded := map[string]bool{}
+	err = fs.WalkDir(Templates, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		embedded[p] = true
+		want, ok := onDisk[p]
+		if !ok {
+			t.Errorf("%s is embedded but not on disk", p)
+			return nil
+		}
+		got, err := fs.ReadFile(Templates, p)
+		if err != nil {
+			return err
+		}
+		if string(got) != string(want) {
+			t.Errorf("%s: embedded bytes differ from disk", p)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for p := range onDisk {
+		if !embedded[p] {
+			t.Errorf("%s is on disk but not embedded", p)
 		}
 	}
 }
@@ -46,5 +68,8 @@ func TestTemplatesAreEmbedded(t *testing.T) {
 func TestTemplatesAreReRooted(t *testing.T) {
 	if _, err := fs.Stat(Templates, "cli/templates"); err == nil {
 		t.Error("Templates still exposes the cli/templates prefix")
+	}
+	if _, err := fs.Stat(Templates, "devcontainer/compose-all.yml"); err != nil {
+		t.Errorf("expected devcontainer/compose-all.yml at the root: %v", err)
 	}
 }

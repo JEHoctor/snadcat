@@ -32,7 +32,7 @@ func TestRunRejectsInvalidChoices(t *testing.T) {
 		mut  func(*Options)
 		want string
 	}{
-		{"agent", func(o *Options) { o.Agent = "copilot" }, "Invalid agent: copilot"},
+		{"agent", func(o *Options) { o.Agent = "gemini" }, "Invalid agent: gemini"},
 		{"ide", func(o *Options) { o.IDE = "emacs" }, "Invalid IDE: emacs"},
 		{"provider", func(o *Options) { o.SecretProvider = "vault" }, "Invalid secret provider: vault"},
 		{"proxy", func(o *Options) { o.Proxy = "gui" }, "Invalid proxy mode: gui"},
@@ -45,6 +45,7 @@ func TestRunRejectsInvalidChoices(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			o := base
+			o.Path = t.TempDir() // per case, so one leak can't mask another
 			tc.mut(&o)
 			err := Run(o)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {

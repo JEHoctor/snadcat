@@ -14,6 +14,7 @@ type summary struct {
 	stacks          []string
 	gitignoreStatus string
 	rtkEnabled      bool
+	strictNetwork   bool
 	provider        string
 }
 
@@ -39,6 +40,15 @@ func printSummary(s summary) {
 		log.Info("  RTK:              installed (disable with --features no-rtk)")
 	} else {
 		log.Info("  RTK:              disabled")
+	}
+	if s.strictNetwork {
+		presets := "none"
+		if len(s.stacks) > 0 {
+			presets = strings.Join(s.stacks, ", ")
+		}
+		log.Info("  Network:          strict — stack presets: %s (edit .sandcat/settings.json to allow more)", presets)
+	} else {
+		log.Info("  Network:          default (allow all GET; tighten with --features strict-network)")
 	}
 	switch s.provider {
 	case "1password":

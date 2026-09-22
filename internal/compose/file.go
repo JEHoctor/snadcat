@@ -129,11 +129,26 @@ func ensure(n *yaml.Node, path ...string) *yaml.Node {
 		next := get(cur, key)
 		if next == nil {
 			next = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-			cur.Content = append(cur.Content, scalar(key), next)
+			appendContent(cur, scalar(key), next)
 		}
 		cur = next
 	}
 	return cur
+}
+
+// appendContent adds children to a collection node.
+//
+// A template may declare an empty collection in flow style — `agent: {}` —
+// and yaml.v3 preserves that style when children are added, rendering the
+// whole populated service on one line. yq switches an empty flow node to
+// block style the moment it gains content, and that is the layout users
+// edit, so the style is reset here under the same condition. A non-empty
+// flow node keeps its style, as it does under yq.
+func appendContent(n *yaml.Node, children ...*yaml.Node) {
+	if len(n.Content) == 0 && n.Style&yaml.FlowStyle != 0 {
+		n.Style &^= yaml.FlowStyle
+	}
+	n.Content = append(n.Content, children...)
 }
 
 // ensureSeq returns the sequence at path, creating it when absent.
@@ -146,7 +161,7 @@ func ensureSeq(n *yaml.Node, path ...string) *yaml.Node {
 	seq := get(parent, key)
 	if seq == nil {
 		seq = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
-		parent.Content = append(parent.Content, scalar(key), seq)
+		appendContent(parent, scalar(key), seq)
 	}
 	return seq
 }
@@ -168,7 +183,7 @@ func (f *File) setScalar(value string, path ...string) {
 			return
 		}
 	}
-	parent.Content = append(parent.Content, scalar(key), scalar(value))
+	appendContent(parent, scalar(key), scalar(value))
 }
 
 // delete removes a key from the mapping at path.
