@@ -1,0 +1,2 @@
+				// Cursor CLI support currently uses compatibility defaults for
+				// auth/network config. Add Cursor-specific settings here if needed.

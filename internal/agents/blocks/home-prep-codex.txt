@@ -1,0 +1,6 @@
+# Pre-create ~/.codex and ~/.codex-host so Docker bind-mounts don't
+# create them as root-owned. The host AGENTS.md is bind-mounted into
+# ~/.codex-host/ (not directly into ~/.codex/) so the user-init copy
+# step can seed a writable ~/.codex/AGENTS.md that rtk can patch.
+RUN mkdir -p /home/vscode/.codex /home/vscode/.codex-host
+RUN echo 'alias codex-yolo="codex --yolo"' >> /home/vscode/.bashrc

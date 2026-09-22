@@ -1,0 +1,51 @@
+name: Go CLI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Check formatting
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "gofmt needed on:"; echo "$out"; exit 1
+          fi
+
+      # go.mod/go.sum must be exactly what tidy produces, so a dependency
+      # can't be left mislabelled as indirect or a stale sum linger.
+      - name: Check go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - run: go vet ./...
+
+      # The parity tests shell out to the bash originals under cli/ and to
+      # Mike Farah's yq; both are present on ubuntu-latest, but verify so a
+      # silent skip can't be mistaken for a pass.
+      - name: Verify parity tooling
+        run: |
+          yq --version | grep -q mikefarah
+          jq --version
+
+      - run: go test ./...
+
+      # End-to-end: sandcat init through both CLIs across the option matrix,
+      # diffing the generated project and home trees. Must stay at 27/27 until
+      # the bash tree is removed (plans/2026-08-07-go-port.md §4.1, step 6e).
+      - name: Differential harness
+        run: |
+          go build -o sandcat ./cmd/sandcat
+          scripts/difftest.sh

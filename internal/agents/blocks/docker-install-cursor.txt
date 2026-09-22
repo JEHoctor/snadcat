@@ -1,0 +1,2 @@
+# Install Cursor CLI.
+RUN curl https://cursor.com/install -fsS | bash
