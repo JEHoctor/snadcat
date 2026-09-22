@@ -5,10 +5,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jehoctor/snadcat/internal/agents"
 	"github.com/jehoctor/snadcat/internal/stacks"
+	"github.com/jehoctor/snadcat/internal/testutil"
 )
 
 // This file is the acceptance test for plans/2026-08-07-go-port.md §3.1: the Go compose
@@ -114,7 +116,8 @@ func runGoCustomize(t *testing.T, env map[string]string, agent, ide, projectName
 	opts.ProjectName = projectName
 	opts.Stacks = stackList
 	opts.ApplyEnvOverrides(func(k string) (string, bool) {
-		v, ok := env[k]
+		// The matrix is written in the bash's SANDCAT_* names.
+		v, ok := env[strings.Replace(k, "SNADCAT_", "SANDCAT_", 1)]
 		return v, ok
 	})
 
@@ -131,7 +134,7 @@ func runGoCustomize(t *testing.T, env map[string]string, agent, ide, projectName
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(b)
+	return testutil.Normalize(string(b))
 }
 
 // TestCustomizeMatchesBash sweeps the option matrix and requires byte equality
@@ -242,8 +245,8 @@ func TestProxyMutationsMatchBash(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if string(got) != string(want) {
-			t.Errorf("output differs from bash\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		if g := testutil.Normalize(string(got)); g != string(want) {
+			t.Errorf("output differs from bash\n--- got ---\n%s\n--- want ---\n%s", g, want)
 		}
 	}
 
@@ -286,13 +289,16 @@ func TestUpstreamCABundlesMatchBash(t *testing.T) {
 	if err := os.WriteFile(userSettings, []byte(`{"upstream_ca_bundles":["`+bundle1+`"]}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// Each tool reads its own project dir; give both the same local settings.
 	project := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(project, ".sandcat"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(project, ".sandcat", "settings.local.json"),
-		[]byte(`{"upstream_ca_bundles":["`+bundle2+`"]}`+"\n"), 0o644); err != nil {
-		t.Fatal(err)
+	for _, dir := range []string{".sandcat", ".snadcat"} {
+		if err := os.MkdirAll(filepath.Join(project, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(project, dir, "settings.local.json"),
+			[]byte(`{"upstream_ca_bundles":["`+bundle2+`"]}`+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	tmpl, err := os.ReadFile(repoPath(t, "cli/templates/devcontainer/sandcat/compose-proxy.yml"))
@@ -335,8 +341,8 @@ func TestUpstreamCABundlesMatchBash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != string(want) {
-		t.Errorf("output differs from bash\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	if g := testutil.Normalize(string(got)); g != string(want) {
+		t.Errorf("output differs from bash\n--- got ---\n%s\n--- want ---\n%s", g, want)
 	}
 }
 

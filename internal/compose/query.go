@@ -38,7 +38,7 @@ func (f *File) ExternalCacheVolumes() []string {
 		if n := get(decl, "name"); n != nil && n.Value != "" {
 			name = n.Value
 		}
-		if strings.HasPrefix(name, "sandcat-cache-") {
+		if strings.HasPrefix(name, "snadcat-cache-") {
 			out = append(out, name)
 		}
 	}

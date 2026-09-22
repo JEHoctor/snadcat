@@ -165,7 +165,7 @@ func newCacheRmCmd() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.BoolVar(&all, "all", false, "Remove every sandcat-shared-cache volume")
+	f.BoolVar(&all, "all", false, "Remove every snadcat-shared-cache volume")
 	f.BoolVar(&force, "force", false, "Skip the \"container still using this volume\" check")
 	f.BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
 	return cmd

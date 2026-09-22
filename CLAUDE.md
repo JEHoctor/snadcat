@@ -3,10 +3,15 @@
 **snadcat** is a fork of [VirtusLab/sandcat](https://github.com/VirtusLab/sandcat), a
 dev-container sandbox for running AI coding agents. The fork rewrites the CLI in Go and is
 diverging on purpose (it is not intended for upstream). Naming: the Go tool and binary are
-`snadcat`; the original bash CLI under `cli/` keeps the name `sandcat`. The on-disk and
-environment surface both tools produce — `.sandcat/`, `~/.config/sandcat/`, `SANDCAT_*`,
-`sandcat-cache-*` volumes, the `# Sandcat` gitignore block — still says `sandcat` and stays
-that way until the bash tree is removed, because the parity harness diffs it.
+`snadcat`; the original bash CLI under `cli/` keeps the name `sandcat`. The two are meant
+to coexist on one machine, so snadcat's whole host-side surface is its own: `.snadcat/`,
+`~/.config/snadcat/`, `SNADCAT_*` variables, `snadcat-cache-*` volumes, and the
+`# Snadcat` gitignore block. What stays `sandcat` is internal to the generated tree and
+shared with the bash templates (`.devcontainer/sandcat/`, `sandcat.env`, in-container
+script names) until the bash tree is removed. The parity tests and harness map
+snadcat's names back to sandcat's before diffing (`internal/testutil.Normalize`,
+`normalize_tree` in `scripts/difftest.sh`); that is sound because the shared templates
+never contain the string `snadcat`.
 
 ## Branches
 

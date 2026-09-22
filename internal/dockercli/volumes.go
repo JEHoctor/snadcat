@@ -71,7 +71,7 @@ func parseDockerTime(s string) (time.Time, error) {
 }
 
 // SharedCacheLabel marks volumes created by sandcat for the `cache` commands.
-const SharedCacheLabel = "sandcat-shared-cache=true"
+const SharedCacheLabel = "snadcat-shared-cache=true"
 
 // EnsureSharedCacheVolumes creates every sandcat-cache-* external volume the
 // compose file references, so `compose up` doesn't fail with "external volume

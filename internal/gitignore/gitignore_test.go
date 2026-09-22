@@ -1,6 +1,7 @@
 package gitignore
 
 import (
+	"github.com/jehoctor/snadcat/internal/testutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,7 +43,7 @@ func TestUpdateCreatesGitignore(t *testing.T) {
 	if !strings.HasPrefix(got, StartMarker+"\n") {
 		t.Errorf("block should start the file, got %q", got)
 	}
-	for _, want := range []string{".devcontainer/*", "!.devcontainer/devbox.tools.json", ".sandcat/settings.local.json", EndMarker} {
+	for _, want := range []string{".devcontainer/*", "!.devcontainer/devbox.tools.json", ".snadcat/settings.local.json", EndMarker} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
 		}
@@ -219,7 +220,7 @@ func TestBlockMatchesBashOutput(t *testing.T) {
 	if err := Update(goDir); err != nil {
 		t.Fatal(err)
 	}
-	if got := read(t, goDir); got != string(out) {
+	if got := testutil.Normalize(read(t, goDir)); got != string(out) {
 		t.Errorf("block differs from bash:\n got: %q\nwant: %q", got, out)
 	}
 }

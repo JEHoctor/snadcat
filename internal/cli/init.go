@@ -120,7 +120,7 @@ func newInitDevcontainerCmd() *cobra.Command {
 				Stacks:         strings.Fields(stacksArg),
 				ProxyTUI:       proxy == "tui",
 				SecretProvider: compose.SecretProvider(provider),
-				RTKEnabled:     os.Getenv("SANDCAT_RTK") != "false",
+				RTKEnabled:     os.Getenv("SNADCAT_RTK") != "false",
 				Mounts:         mounts,
 			})
 		},

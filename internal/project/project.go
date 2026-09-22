@@ -10,7 +10,7 @@ import (
 )
 
 // Dir is the per-project Sandcat directory (SCT_PROJECT_DIR).
-const Dir = ".sandcat"
+const Dir = ".snadcat"
 
 // ComposeFile is the generated compose file, relative to the project root.
 var ComposeFile = filepath.Join(".devcontainer", "compose-all.yml")

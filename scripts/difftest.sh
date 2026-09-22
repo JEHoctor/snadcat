@@ -23,6 +23,27 @@ trap 'rm -rf "$work"' EXIT
 fail=0
 pass=0
 
+# normalize_tree <dir>: map snadcat's naming back onto sandcat's so the Go
+# tree can be diffed against the bash one. Renames paths, then rewrites file
+# contents. Sound rather than heuristic: the shared templates never contain
+# the string "snadcat", so every occurrence originates from the Go tool's own
+# naming (.snadcat/, ~/.config/snadcat/, SNADCAT_*, snadcat-cache-*, the
+# "# Snadcat" markers).
+normalize_tree() {
+	local root=$1
+	# Deepest paths first so a renamed parent doesn't invalidate child paths.
+	local p
+	while IFS= read -r -d '' p; do
+		local base dirn
+		base=$(basename "$p"); dirn=$(dirname "$p")
+		case "$base" in
+		*snadcat*) mv "$p" "$dirn/${base//snadcat/sandcat}" ;;
+		esac
+	done < <(find "$root" -depth -name '*snadcat*' -print0)
+	find "$root" -type f -print0 | xargs -0 -r sed -i \
+		-e 's/SNADCAT_/SANDCAT_/g' -e 's/Snadcat/Sandcat/g' -e 's/snadcat/sandcat/g'
+}
+
 # run_case <name> <extra env...> -- <init args...>
 run_case() {
 	local name=$1
@@ -51,13 +72,22 @@ run_case() {
 		fail=$((fail + 1))
 		return
 	fi
-	if ! env -i HOME="$dir/home-go" PATH="$PATH" GIT_CONFIG_NOSYSTEM=1 "${env[@]}" \
+	# The matrix is written in the bash's SANDCAT_* names; the Go tool reads
+	# SNADCAT_*. Map them for the Go run only.
+	local -a go_env=()
+	local e
+	for e in "${env[@]+"${env[@]}"}"; do
+		go_env+=("${e/#SANDCAT_/SNADCAT_}")
+	done
+	if ! env -i HOME="$dir/home-go" PATH="$PATH" GIT_CONFIG_NOSYSTEM=1 "${go_env[@]+"${go_env[@]}"}" \
 		"$go_bin" init --path "$dir/proj-go" "${common[@]}" >"$dir/go.log" 2>&1; then
 		echo "FAIL $name: go init failed:" >&2
 		sed 's/^/    /' "$dir/go.log" >&2
 		fail=$((fail + 1))
 		return
 	fi
+	normalize_tree "$dir/proj-go"
+	normalize_tree "$dir/home-go"
 
 	local ok=true
 	if ! diff -ru "$dir/proj-bash" "$dir/proj-go" >"$dir/proj.diff"; then

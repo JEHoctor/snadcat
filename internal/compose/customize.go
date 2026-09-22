@@ -8,7 +8,7 @@ import (
 )
 
 // Options are the mount toggles and selections that shape a generated
-// compose-all.yml. They correspond to the SANDCAT_MOUNT_* environment
+// compose-all.yml. They correspond to the SNADCAT_MOUNT_* environment
 // variables the bash implementation reads, lifted into explicit parameters so
 // the behavior is visible at the call site instead of ambient.
 type Options struct {
@@ -38,7 +38,7 @@ func DefaultOptions() Options {
 	}
 }
 
-// ApplyEnvOverrides folds the SANDCAT_MOUNT_* environment variables into the
+// ApplyEnvOverrides folds the SNADCAT_MOUNT_* environment variables into the
 // options, matching customize_compose_file's defaulting.
 //
 // Each variable is "true" to enable; anything else disables. Unset leaves the
@@ -52,9 +52,9 @@ func (o *Options) ApplyEnvOverrides(lookup func(string) (string, bool)) {
 	if o.Agent.MountEnvVar != "" {
 		set(&o.MountAgentConfig, o.Agent.MountEnvVar)
 	}
-	set(&o.MountGitReadonly, "SANDCAT_MOUNT_GIT_READONLY")
-	set(&o.MountIdeaReadonly, "SANDCAT_MOUNT_IDEA_READONLY")
-	set(&o.MountSharedCache, "SANDCAT_MOUNT_SHARED_CACHE")
+	set(&o.MountGitReadonly, "SNADCAT_MOUNT_GIT_READONLY")
+	set(&o.MountIdeaReadonly, "SNADCAT_MOUNT_IDEA_READONLY")
+	set(&o.MountSharedCache, "SNADCAT_MOUNT_SHARED_CACHE")
 }
 
 // Customize applies every mutation `sandcat init` makes to compose-all.yml.

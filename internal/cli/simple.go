@@ -21,7 +21,7 @@ func newDestroyCmd() *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
 		Use:   "destroy",
-		Short: "Stop containers, remove volumes, and delete .devcontainer and .sandcat",
+		Short: "Stop containers, remove volumes, and delete .devcontainer and .snadcat",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			root, err := project.FindRoot(".")
@@ -186,12 +186,12 @@ func newEditCmd() *cobra.Command {
 			missing: "No Dockerfile found: %s",
 		},
 		{
-			use: "project-settings", short: "Edit .sandcat/settings.json",
+			use: "project-settings", short: "Edit .snadcat/settings.json",
 			path:    func() (string, error) { return rootPath(project.Dir, "settings.json") },
 			missing: "No settings file found: %s",
 		},
 		{
-			use: "user-settings", short: "Edit ~/.config/sandcat/settings.json",
+			use: "user-settings", short: "Edit ~/.config/snadcat/settings.json",
 			path:    config.UserSettingsPath,
 			missing: "No user settings file found: %s\nRun 'snadcat init' first to create it.",
 		},
@@ -260,7 +260,7 @@ func newEditComposeCmd() *cobra.Command {
 				log.Info("Compose file was modified.")
 				return nil
 			}
-			if noRestart || strings.EqualFold(os.Getenv("SANDCAT_NO_RESTART"), "true") {
+			if noRestart || strings.EqualFold(os.Getenv("SNADCAT_NO_RESTART"), "true") {
 				log.Warn("Compose file was modified, and you have containers running.")
 				log.Warn("To pick up the changes and restart your containers, run: snadcat compose up -d")
 				return nil

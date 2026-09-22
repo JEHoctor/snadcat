@@ -23,7 +23,7 @@ type Options struct {
 	// e.g. ".sandcat/settings.json".
 	SettingsFile string
 
-	// UserSettings is the absolute path of ~/.config/sandcat/settings.json,
+	// UserSettings is the absolute path of ~/.config/snadcat/settings.json,
 	// read for upstream_ca_bundles. Empty means none configured there.
 	UserSettings string
 
