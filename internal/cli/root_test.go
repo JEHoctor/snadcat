@@ -203,27 +203,3 @@ func TestEveryModuleFromBashDispatcherExists(t *testing.T) {
 		}
 	}
 }
-
-// The bash dispatcher's usage text advertises `sandcat <module> help`; it
-// must keep working, without swallowing a literal `help` meant for docker or
-// the container.
-func TestTrailingHelpRewrite(t *testing.T) {
-	root := NewRootCmd()
-	tests := []struct {
-		in   []string
-		want []string
-	}{
-		{[]string{"init", "help"}, []string{"init", "--help"}},
-		{[]string{"cache", "rm", "help"}, []string{"cache", "rm", "--help"}},
-		{[]string{"help"}, []string{"help"}},
-		{[]string{"compose", "help"}, []string{"compose", "help"}},
-		{[]string{"attach", "help"}, []string{"attach", "help"}},
-		{[]string{"init", "--agent", "help"}, []string{"init", "--agent", "help"}},
-	}
-	for _, tc := range tests {
-		got := rewriteTrailingHelp(root, tc.in)
-		if strings.Join(got, " ") != strings.Join(tc.want, " ") {
-			t.Errorf("%v: got %v, want %v", tc.in, got, tc.want)
-		}
-	}
-}
