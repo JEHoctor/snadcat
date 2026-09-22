@@ -70,3 +70,6 @@ us](https://virtuslab.com) to learn more about our offer!
 ## Copyright
 
 Copyright (C) 2026 VirtusLab [https://virtuslab.com](https://virtuslab.com).
+
+Portions Copyright (C) 2026 James Hoctor. This repository is a fork; see
+[NOTICE](NOTICE) for attribution of the Go CLI rewrite.
