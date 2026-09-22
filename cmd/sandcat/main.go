@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	err := cli.NewRootCmd().Execute()
+	err := cli.Execute(os.Args[1:])
 	if err == nil {
 		return
 	}

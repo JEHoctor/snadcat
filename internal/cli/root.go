@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/jehoctor/snadcat/internal/log"
@@ -46,6 +48,36 @@ func NewRootCmd() *cobra.Command {
 		newEditCmd(),
 	)
 	return root
+}
+
+// Execute runs the command tree against os.Args, first translating the bash
+// dispatcher's `sandcat <module> help` form — which its own usage text
+// advertises — into the `--help` cobra understands. Only a trailing bare
+// `help` on a non-passthrough command is rewritten, so `sandcat compose help`
+// still reaches docker and `sandcat attach help` still runs `help` in the
+// container.
+func Execute(args []string) error {
+	root := NewRootCmd()
+	root.SetArgs(rewriteTrailingHelp(root, args))
+	return root.Execute()
+}
+
+func rewriteTrailingHelp(root *cobra.Command, args []string) []string {
+	n := len(args)
+	if n < 2 || args[n-1] != "help" {
+		return args
+	}
+	// `--agent help` is a flag value, not a request for help. A boolean flag
+	// followed by `help` is left alone too, at the cost of that one odd form.
+	if strings.HasPrefix(args[n-2], "-") {
+		return args
+	}
+	cmd, _, err := root.Find(args[:n-1])
+	if err != nil || cmd == root || cmd.DisableFlagParsing {
+		return args
+	}
+	out := append([]string{}, args[:n-1]...)
+	return append(out, "--help")
 }
 
 // rootCommandName returns the name of the top-level command cmd sits under,
