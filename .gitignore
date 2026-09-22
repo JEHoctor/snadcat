@@ -1,9 +1,12 @@
 __pycache__/
 .pytest_cache/
 
-# Go build output (cmd/sandcat)
+# Go build output (cmd/snadcat)
 /snadcat
 /dist/
+# Written when either tool is run against this repo itself. The .sandcat
+# line goes when the bash CLI does.
+.snadcat/settings.local.json
 .sandcat/settings.local.json
 .devcontainer
 .orca
