@@ -11,6 +11,7 @@ import (
 	"github.com/jehoctor/snadcat/internal/compose"
 	"github.com/jehoctor/snadcat/internal/devbox"
 	"github.com/jehoctor/snadcat/internal/log"
+	"github.com/jehoctor/snadcat/internal/stacks"
 )
 
 // Options configure one generation of a project's .devcontainer directory.
@@ -21,6 +22,10 @@ type Options struct {
 	// SettingsFile is the project settings path relative to ProjectPath,
 	// e.g. ".sandcat/settings.json".
 	SettingsFile string
+
+	// UserSettings is the absolute path of ~/.config/sandcat/settings.json,
+	// read for upstream_ca_bundles. Empty means none configured there.
+	UserSettings string
 
 	Agent agents.Agent
 	IDE   string
@@ -74,6 +79,15 @@ func Generate(o Options) error {
 		return err
 	}
 
+	// Stack-contributed environment lands before the agent's, matching the
+	// bash call order (customize_compose_stack_environment runs first).
+	composePath := filepath.Join(dir, "compose-all.yml")
+	cf, err := compose.Load(composePath)
+	if err != nil {
+		return err
+	}
+	cf.MergeAgentEnvironment(stacks.EnvEntries(o.Stacks))
+
 	// Agent-specific placeholders across four files.
 	a := o.Agent
 	if err := editFile(jsonPath, func(s string) string {
@@ -103,13 +117,15 @@ func Generate(o Options) error {
 			Pair{"__AGENT_MITM_ADDON__", a.MitmAddonFile},
 			Pair{"__MITM_HTTP2__", a.MitmHTTP2},
 			Pair{"__AGENT_MITM_STREAMING_FLAGS__", a.MitmStreamingFlags},
+			Pair{"__MITMPROXY_VERSION__", compose.MitmproxyVersion},
 		)
 	}); err != nil {
 		return err
 	}
 
 	// compose-proxy.yml structural edits.
-	if o.ProxyTUI || (o.SecretProvider != "" && o.SecretProvider != compose.SecretProviderNone) {
+	bundles := compose.ReadUpstreamCABundles(o.UserSettings, o.ProjectPath)
+	if o.ProxyTUI || (o.SecretProvider != "" && o.SecretProvider != compose.SecretProviderNone) || len(bundles) > 0 {
 		proxy, err := compose.Load(proxyPath)
 		if err != nil {
 			return err
@@ -120,18 +136,16 @@ func Generate(o Options) error {
 		if err := proxy.ApplySecretProvider(o.SecretProvider); err != nil {
 			return err
 		}
+		if err := proxy.ApplyUpstreamCABundles(bundles); err != nil {
+			return err
+		}
 		if err := proxy.Save(proxyPath); err != nil {
 			return err
 		}
 	}
 
 	// compose-all.yml: agent environment, mounts, project name.
-	composePath := filepath.Join(dir, "compose-all.yml")
-	cf, err := compose.Load(composePath)
-	if err != nil {
-		return err
-	}
-	cf.SetAgentEnvironment(a.ComposeEnvironment)
+	cf.MergeAgentEnvironment(a.ComposeEnvironment)
 	mounts := o.Mounts
 	mounts.SettingsFile = "../" + filepath.ToSlash(o.SettingsFile)
 	mounts.Agent = a
@@ -150,6 +164,14 @@ func Generate(o Options) error {
 		return CustomizeJSON(s, o.ProjectName, o.IDE)
 	}); err != nil {
 		return err
+	}
+	// Plugins go in after CustomizeJSON has emitted the JetBrains block.
+	if o.IDE == "jetbrains" && len(o.Stacks) > 0 {
+		if err := editFile(jsonPath, func(s string) string {
+			return CustomizePlugins(s, o.Stacks)
+		}); err != nil {
+			return err
+		}
 	}
 
 	log.Info("Devcontainer dir created at %s", ".devcontainer")

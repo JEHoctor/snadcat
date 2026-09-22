@@ -22,7 +22,7 @@ teardown() {
 assert_proxy_service() {
 	local compose_file=$1
 
-	yq -e '.services.mitmproxy.image == "mitmproxy/mitmproxy:latest"' "$compose_file"
+	yq -e '.services.mitmproxy.image == "mitmproxy/mitmproxy:'"$SCT_MITMPROXY_VERSION"'"' "$compose_file"
 
 	# FIXME vscode startup fails with capabilities dropped
 	# yq -e '.services.mitmproxy.cap_drop[] | select(. == "ALL")' "$compose_file"
@@ -34,6 +34,12 @@ assert_agent_service() {
 	yq -e '.services.agent.working_dir == "/workspaces/project-sandbox"' "$compose_file"
 
 	yq -e '.services.agent.network_mode == "service:wg-client"' "$compose_file"
+
+	yq -e '.services.agent.security_opt[] | select(. == "no-new-privileges")' "$compose_file"
+
+	yq -e '.services.agent.depends_on | has("wg-client")' "$compose_file"
+
+	yq -e '.services.agent.command[] | select(. == "infinity")' "$compose_file"
 
 	# FIXME vscode startup fails with capabilities dropped
 	# yq -e '.services.agent.cap_drop[] | select(. == "ALL")' "$compose_file"
@@ -79,10 +85,16 @@ assert_common_volumes() {
 		select(.type == "volume" and .source == "agent-home" and .target == "/home/vscode")
 	' "$compose_file"
 
-	# Volume: mitmproxy-config (read-only)
+	# Volume: mitmproxy-public (read-only, mounted as /mitmproxy-config inside the container)
 	yq -e '
 		.services.agent.volumes[] |
-		select(.type == "volume" and .source == "mitmproxy-config" and .target == "/mitmproxy-config" and .read_only == true)
+		select(.type == "volume" and .source == "mitmproxy-public" and .target == "/mitmproxy-config" and .read_only == true)
+	' "$compose_file"
+
+	# Volume: wg-runtime (read-only)
+	yq -e '
+		.services.agent.volumes[] |
+		select(.type == "volume" and .source == "wg-runtime" and .target == "/run/sandcat" and .read_only == true)
 	' "$compose_file"
 }
 
@@ -308,7 +320,7 @@ claude_agent_compose_file_has_expected_content() {
 	assert_claude_environment_vars "$compose_file"
 	assert_common_volumes "$compose_file"
 
-	assert_named_volumes "$compose_file" "agent-home" "mitmproxy-config"
+	assert_named_volumes "$compose_file" "agent-home" "mitmproxy-config" "mitmproxy-public"
 	assert_claude_volumes "$compose_file"
 	assert_customization_volumes "$compose_file"
 }
@@ -321,7 +333,7 @@ cursor_agent_compose_file_has_expected_content() {
 	assert_cursor_environment_vars "$compose_file"
 	assert_common_volumes "$compose_file"
 
-	assert_named_volumes "$compose_file" "agent-home" "mitmproxy-config"
+	assert_named_volumes "$compose_file" "agent-home" "mitmproxy-config" "mitmproxy-public"
 	assert_cursor_volumes "$compose_file"
 	# Cursor regression uses --ide vscode and SANDCAT_MOUNT_IDEA_READONLY=false — no active .idea mount.
 	assert_customization_volumes_core "$compose_file"
@@ -351,6 +363,12 @@ cursor_agent_compose_file_has_expected_content() {
 
 	assert_devcontainer_volume "$effective_file"
 	assert_jetbrains_capabilities "$effective_file"
+
+	# The generated Dockerfile.app removes the base image's passwordless-sudo
+	# grant for vscode, so the image is hardened even when run outside
+	# sandcat's compose (issue #12).
+	run grep -F 'rm -f /etc/sudoers.d/vscode' "$PROJECT_DIR/.devcontainer/Dockerfile.app"
+	assert_success
 }
 
 @test "devcontainer end-to-end: creates devcontainer config for cursor agent" {

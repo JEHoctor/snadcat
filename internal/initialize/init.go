@@ -49,6 +49,7 @@ var featureLabels = []string{
 	"no-shared-cache (per-project dep cache instead of shared)",
 	"no-gitignore (do not append Sandcat block to .gitignore)",
 	"no-rtk (do not install rtk shell hook)",
+	"strict-network (stack presets instead of allow-all-GET wildcard)",
 }
 
 // envBool reads a SANDCAT_* toggle: unset means def, otherwise only the
@@ -140,6 +141,7 @@ func Run(o Options) error {
 	proxyMode := o.Proxy
 	gitignoreEnabled := envBool("SANDCAT_GITIGNORE", true)
 	rtkEnabled := envBool("SANDCAT_RTK", true)
+	strictNetwork := envBool("SANDCAT_STRICT_NETWORK", false)
 	sharedCacheDisabled := false
 	applyFeature := func(f string) error {
 		switch f {
@@ -151,10 +153,12 @@ func Run(o Options) error {
 			gitignoreEnabled = false
 		case "no-rtk":
 			rtkEnabled = false
+		case "strict-network":
+			strictNetwork = true
 		case "1password":
 			return fmt.Errorf("Use --secret-provider 1password instead of --features 1password")
 		default:
-			return fmt.Errorf("Unknown feature: %s (expected: tui, no-shared-cache, no-gitignore, no-rtk)", f)
+			return fmt.Errorf("Unknown feature: %s (expected: tui, no-shared-cache, no-gitignore, no-rtk, strict-network)", f)
 		}
 		return nil
 	}
@@ -222,10 +226,12 @@ func Run(o Options) error {
 
 	// Project-level files.
 	settingsRel := filepath.Join(project.Dir, "settings.json")
-	if err := config.WriteProjectSettings(filepath.Join(projectPath, settingsRel)); err != nil {
+	if err := config.WriteProjectSettings(filepath.Join(projectPath, settingsRel), config.ProjectSettingsOptions{
+		StrictNetwork: strictNetwork,
+		Stacks:        resolved,
+	}); err != nil {
 		return err
 	}
-	log.Info("Settings file created at %s", filepath.ToSlash(settingsRel))
 
 	mounts := compose.DefaultOptions()
 	mounts.Agent = agent
@@ -234,10 +240,15 @@ func Run(o Options) error {
 		// The feature wins over the environment, as the bash's export did.
 		mounts.MountSharedCache = false
 	}
+	userSettings, err := config.UserSettingsPath()
+	if err != nil {
+		return err
+	}
 	if err := devcontainer.Generate(devcontainer.Options{
 		ProjectPath:    projectPath,
 		ProjectName:    name,
 		SettingsFile:   settingsRel,
+		UserSettings:   userSettings,
 		Agent:          agent,
 		IDE:            ide,
 		Stacks:         resolved,
@@ -256,6 +267,7 @@ func Run(o Options) error {
 		stacks:          resolved,
 		gitignoreStatus: gitignoreStatus,
 		rtkEnabled:      rtkEnabled,
+		strictNetwork:   strictNetwork,
 		provider:        provider,
 	})
 	return nil

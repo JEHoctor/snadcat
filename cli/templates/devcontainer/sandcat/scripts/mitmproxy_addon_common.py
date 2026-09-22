@@ -18,12 +18,10 @@ Agent variants override a small set of hook methods to customise behaviour:
   - ``_prepare_streaming_request(flow)``    — per-request streaming setup.
   - ``_normalize_authorization_header(v)``  — sanitize the ``Authorization``
     header after substitution.
-  - ``_basic_auth_contains_placeholder(auth_header, placeholder) -> bool``.
-  - ``_replace_placeholder_in_basic_auth(auth_header, placeholder, value)``.
   - ``_is_textual_content_type(ct) -> bool`` — body substitution gate.
 
 The defaults are tuned to match the simplest "Claude" behaviour (no streaming,
-no Basic Auth handling, body substitution always permitted).
+Basic Auth substitution, body substitution always permitted).
 
 Proton Pass authentication
 --------------------------
@@ -47,6 +45,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import subprocess
 import sys
 from fnmatch import fnmatch
@@ -67,17 +66,119 @@ SETTINGS_PATHS = [
     "/config/project/settings.json",        # project: .sandcat/settings.json
     "/config/project/settings.local.json",  # local:   .sandcat/settings.local.json
 ]
-SANDCAT_ENV_PATH = "/home/mitmproxy/.mitmproxy/sandcat.env"
-CURSOR_CLI_CONFIG_PATH = "/home/mitmproxy/.mitmproxy/cursor-cli-config.json"
-# Sidecar file consumed by wg-client to override /etc/resolv.conf nameservers.
-# One IPv4/IPv6 address per line; empty or missing file means "use defaults".
-# (glibc/musl resolvers reject hostnames in `nameserver` directives.)
+# Agent-visible files land in the mitmproxy-public volume — mounted RO
+# in the agent container as /mitmproxy-config/. See issue #25 for why we
+# split the private CA volume from the agent-facing files.
+SANDCAT_ENV_PATH = "/mitmproxy-public/sandcat.env"
+CURSOR_CLI_CONFIG_PATH = "/mitmproxy-public/cursor-cli-config.json"
+# Read by wg-client (trusted, sees the private volume) — stays where it
+# already was; no need to duplicate into the public volume.
 SANDCAT_DNS_CONF_PATH = "/home/mitmproxy/.mitmproxy/dns.conf"
 # Sidecar file consumed by wg-client-init.sh. `IP<TAB>hostname` per line.
 # ALWAYS written by the addon (empty file when nothing configured) so
 # wg-client-init treats file-existence as authoritative and can clean out
 # stale entries from previous runs.
 EXTRA_HOSTS_PATH = "/home/mitmproxy/.mitmproxy/extra_hosts"
+
+# Predefined network allowlists (issue #2). A settings `network` entry of
+# `{"preset": "<name>"}` expands, in place, to one `{"action": "allow",
+# "host": <h>}` rule per host below — see _expand_network_presets. Names
+# deliberately match `sandcat init --stacks` values where an ecosystem
+# preset exists, plus agent/API and forge presets. Host-only on purpose
+# (no method restriction): these mirror the domain-level allowlists this
+# feature is modeled on, and per-method tightening of package registries
+# breaks legitimate flows (e.g. npm audit POSTs) for marginal gain.
+# Ecosystem presets are self-contained — `scala` repeats the Maven hosts
+# instead of depending on `java` — so using one preset alone never leaves
+# a hidden gap; duplicate rules from combined presets are harmless under
+# first-match-wins.
+NETWORK_PRESETS: dict[str, list[str]] = {
+    "python": [
+        "pypi.org",
+        "files.pythonhosted.org",
+        "pypi.python.org",
+        "astral.sh",  # uv installer/metadata
+    ],
+    "node": [
+        "registry.npmjs.org",
+        "registry.yarnpkg.com",
+        "nodejs.org",
+    ],
+    "java": [
+        "repo.maven.apache.org",
+        "repo1.maven.org",
+        "central.sonatype.com",
+        "plugins.gradle.org",
+        "services.gradle.org",
+        "downloads.gradle.org",
+        "downloads.gradle-dn.com",
+    ],
+    "scala": [
+        "repo.scala-sbt.org",
+        "repo.typesafe.com",
+        "repo1.maven.org",
+        "repo.maven.apache.org",
+        "central.sonatype.com",
+    ],
+    "go": [
+        "proxy.golang.org",
+        "sum.golang.org",
+        "pkg.go.dev",
+        "golang.org",
+        "google.golang.org",
+    ],
+    "rust": [
+        "crates.io",
+        "index.crates.io",
+        "static.crates.io",
+        "static.rust-lang.org",
+    ],
+    "ruby": [
+        "rubygems.org",
+        "index.rubygems.org",
+        "api.rubygems.org",
+    ],
+    "dotnet": [
+        "api.nuget.org",
+        "globalcdn.nuget.org",
+        "nuget.org",
+    ],
+    "zig": [
+        "ziglang.org",
+    ],
+    # devbox/nix — needed when installing packages at RUNTIME inside the
+    # agent (image build happens on the host, outside the proxy).
+    "nix": [
+        "cache.nixos.org",
+        "channels.nixos.org",
+        "releases.nixos.org",
+        "search.devbox.sh",
+    ],
+    "vscode": [
+        "update.code.visualstudio.com",
+        "marketplace.visualstudio.com",
+        "*.vsassets.io",
+        "main.vscode-cdn.net",
+    ],
+    "jetbrains": [
+        "plugins.jetbrains.com",
+        "downloads.marketplace.jetbrains.com",
+    ],
+    "github": [
+        "github.com",
+        "*.github.com",
+        "*.githubusercontent.com",
+    ],
+    "anthropic": [
+        "*.anthropic.com",
+        "*.claude.ai",
+        "*.claude.com",
+    ],
+    "openai": [
+        "api.openai.com",
+        "*.openai.com",
+    ],
+}
 
 logger = logging.getLogger(__name__)
 
@@ -373,7 +474,32 @@ class SandcatAddon:
 
     def _load_secrets(self, raw_secrets: dict):
         for name, entry in raw_secrets.items():
-            placeholder = f"SANDCAT_PLACEHOLDER_{name}"
+            # Per-secret placeholder override (rare). Needed when the consumer
+            # tool validates token format client-side and would reject the
+            # default `SANDCAT_PLACEHOLDER_<NAME>` shape before ever hitting
+            # mitmproxy — GitHub Copilot CLI checks the `gho_`/`github_pat_`
+            # prefix on `COPILOT_GITHUB_TOKEN` and errors out with "no auth
+            # information found" for anything else. A custom placeholder in
+            # settings.json (e.g. `gho_SANDCAT_PLACEHOLDER_COPILOT_GITHUB_TOKEN`)
+            # keeps the CLI happy on the env-var side; mitmproxy's on-the-wire
+            # `.replace(placeholder, value)` still swaps the ENTIRE string with
+            # the real token, so what actually leaves the sandbox is well-formed.
+            custom = entry.get("placeholder")
+            if custom is not None:
+                if not isinstance(custom, str):
+                    ctx.log.warn(
+                        f"Secret {name!r}: 'placeholder' must be a string, got "
+                        f"{type(custom).__name__}; using default"
+                    )
+                    custom = None
+                elif "SANDCAT_PLACEHOLDER_" not in custom:
+                    ctx.log.warn(
+                        f"Secret {name!r}: custom placeholder must contain "
+                        f"'SANDCAT_PLACEHOLDER_' to prevent false-positive "
+                        f"substitutions; using default"
+                    )
+                    custom = None
+            placeholder = custom or f"SANDCAT_PLACEHOLDER_{name}"
             self._warn_if_value_looks_like_reference(name, entry)
             source = self._secret_source(entry)
             if "pass" in entry and not self._pass_cli_logged_in:
@@ -507,8 +633,42 @@ class SandcatAddon:
     # --------------------------------------------------------------- network
 
     def _load_network_rules(self, raw_rules: list):
-        self.network_rules = raw_rules
+        self.network_rules = self._expand_network_presets(raw_rules)
         ctx.log.info(f"Loaded {len(self.network_rules)} network rule(s)")
+
+    @classmethod
+    def _expand_network_presets(cls, raw_rules: list) -> list:
+        """Expand ``{"preset": "<name>"}`` entries into their predefined rules.
+
+        Each preset expands in place, so rule order — and therefore the
+        top-to-bottom / first-match-wins semantics — is preserved around it.
+        A preset entry must carry the ``preset`` key alone: combining it with
+        ``host``/``method``/``action`` has no defined meaning, and an unknown
+        preset name aborts the proxy start (RuntimeError) rather than
+        silently weakening or tightening the policy the user asked for.
+        """
+        expanded: list = []
+        for rule in raw_rules:
+            if not isinstance(rule, dict) or "preset" not in rule:
+                expanded.append(rule)
+                continue
+            extra_keys = sorted(set(rule) - {"preset"})
+            if extra_keys:
+                raise RuntimeError(
+                    f"network preset entry must not combine 'preset' with other "
+                    f"keys (got extra: {extra_keys}); put additional rules on "
+                    f"their own lines before or after the preset"
+                )
+            name = rule["preset"]
+            if name not in NETWORK_PRESETS:
+                raise RuntimeError(
+                    f"unknown network preset {name!r}; available presets: "
+                    f"{', '.join(sorted(NETWORK_PRESETS))}"
+                )
+            hosts = NETWORK_PRESETS[name]
+            expanded.extend({"action": "allow", "host": h} for h in hosts)
+            ctx.log.info(f"Network preset {name!r} expanded to {len(hosts)} allow rule(s)")
+        return expanded
 
     # ----------------------------------------------------------- DNS servers
 
@@ -654,31 +814,35 @@ class SandcatAddon:
     # ----------------------------------------------------------- env writer
 
     @staticmethod
-    def _shell_escape(value: str) -> str:
-        """Escape a string for safe inclusion inside double quotes in shell."""
-        return (
-            value.replace("\\", "\\\\")
-                 .replace('"', '\\"')
-                 .replace("$", "\\$")
-                 .replace("`", "\\`")
-                 .replace("\n", "\\n")
-        )
-
-    @staticmethod
     def _validate_env_name(name: str):
         """Raise ValueError if name is not a valid shell variable name."""
         if not _VALID_ENV_NAME.match(name):
             raise ValueError(f"Invalid env var name: {name!r}")
 
     def _write_placeholders_env(self):
-        lines = []
+        # Validate every name up front so the header below is built only
+        # from names that are guaranteed to match _VALID_ENV_NAME (no
+        # whitespace, no shell metacharacters) — safe-by-construction, so no
+        # value content can ever reach it.
+        for name in self.env:
+            self._validate_env_name(name)
+        for name in self.secrets:
+            self._validate_env_name(name)
+
+        # Authoritative names-only header consumed by app-init.sh to report
+        # "Loaded N env var(s)" + names without grepping `export` lines.
+        # shlex.quote below preserves literal newlines in values, so a
+        # multi-line value's continuation line can itself start with
+        # "export " — grepping for that pattern would both miscount and
+        # print a fragment of the value to the startup log. This header is
+        # always a single line: names contain no whitespace.
+        names = list(self.env) + list(self.secrets)
+        lines = [f"# names: {' '.join(names)}"]
         # Non-secret env vars (e.g. git identity) — passed through as-is.
         for name, value in self.env.items():
-            self._validate_env_name(name)
-            lines.append(f'export {name}="{self._shell_escape(value)}"')
+            lines.append(f"export {name}={shlex.quote(value)}")
         for name, entry in self.secrets.items():
-            self._validate_env_name(name)
-            lines.append(f'export {name}="{self._shell_escape(entry["placeholder"])}"')
+            lines.append(f"export {name}={shlex.quote(entry['placeholder'])}")
         self._atomic_write_text(SANDCAT_ENV_PATH, "\n".join(lines) + "\n")
 
     def _write_cursor_cli_config(self, merged: dict):
@@ -722,15 +886,49 @@ class SandcatAddon:
 
     @staticmethod
     def _basic_auth_contains_placeholder(auth_header: str | None, placeholder: str) -> bool:
-        """Default: no Basic Auth substitution support."""
-        return False
+        """Return True when the decoded Basic Auth credentials contain the placeholder.
+
+        Git credential helpers (e.g. ``gh auth git-credential``) return the
+        token placeholder as the password.  Git then base64-encodes the whole
+        ``username:password`` pair, so the placeholder never appears in plain
+        text in the header — this decode-then-search is required to detect it.
+        """
+        if not auth_header or not auth_header.lower().startswith("basic "):
+            return False
+        encoded = auth_header.split(" ", 1)[1].strip()
+        if not encoded:
+            return False
+        try:
+            decoded = base64.b64decode(encoded).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError, ValueError):
+            return False
+        return placeholder in decoded
 
     @staticmethod
     def _replace_placeholder_in_basic_auth(
         auth_header: str | None, placeholder: str, value: str
     ) -> tuple[str | None, bool]:
-        """Default: do not touch Basic Auth headers. Returns (header, replaced=False)."""
-        return auth_header, False
+        """Decode the Basic Auth blob, replace the placeholder, and re-encode.
+
+        Returns ``(new_header, True)`` on success or ``(original, False)`` when
+        the header is absent, not Basic scheme, or does not contain the placeholder.
+        """
+        if not auth_header or not auth_header.lower().startswith("basic "):
+            return auth_header, False
+        encoded = auth_header.split(" ", 1)[1].strip()
+        if not encoded:
+            return auth_header, False
+        try:
+            decoded = base64.b64decode(encoded).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError, ValueError):
+            return auth_header, False
+        if placeholder not in decoded:
+            return auth_header, False
+        replaced = decoded.replace(placeholder, value)
+        # Trim only outer CR/LF; avoids invisible line-ending damage from clients/editors.
+        replaced = replaced.strip("\r\n")
+        new_encoded = base64.b64encode(replaced.encode("utf-8")).decode("ascii")
+        return f"Basic {new_encoded}", True
 
     @staticmethod
     def _is_textual_content_type(content_type: str | None) -> bool:

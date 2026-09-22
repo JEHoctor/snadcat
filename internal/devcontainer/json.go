@@ -72,3 +72,21 @@ func AgentExtensionLine(extension string) string {
 	}
 	return "\t\t\t\t\"" + extension + "\","
 }
+
+// CustomizePlugins fills the `"plugins": []` that the JetBrains customizations
+// block declares with the stacks' Marketplace plugin ids. The VS Code
+// counterpart is StackExtensionLines.
+//
+// The literal is emitted only by ApplyIDECustomizations, so a line rewrite is
+// safe. No-op when no stack contributes a plugin — the empty array stays.
+func CustomizePlugins(content string, resolvedStacks []string) string {
+	ids := stacks.JetBrainsPlugins(resolvedStacks)
+	if len(ids) == 0 {
+		return content
+	}
+	quoted := make([]string, len(ids))
+	for i, id := range ids {
+		quoted[i] = "\"" + id + "\""
+	}
+	return ApplyInlinePlaceholders(content, Pair{"\"plugins\": []", "\"plugins\": [" + strings.Join(quoted, ", ") + "]"})
+}

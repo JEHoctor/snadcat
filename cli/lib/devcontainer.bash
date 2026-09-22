@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# shellcheck source=constants.bash
+source "$SCT_LIBDIR/constants.bash"
 # shellcheck source=stacks.bash
 source "$SCT_LIBDIR/stacks.bash"
 # shellcheck source=agents.bash
@@ -68,6 +70,58 @@ apply_ide_customizations() {
 		fi
 	done < "$file" > "$tmpfile"
 	mv "$tmpfile" "$file"
+}
+
+# Adds JetBrains Marketplace plugins for selected stacks to devcontainer.json.
+# Replaces the empty `"plugins": []` inside the JetBrains customizations
+# block that apply_ide_customizations emits. Symmetric counterpart to
+# customize_devcontainer_extensions() for the VS Code path.
+#
+# Silently no-ops when no stack contributes a JetBrains plugin (e.g. stacks
+# where language support is bundled in the IDE) — the empty array stays.
+#
+# Args:
+#   $1 - Path to the devcontainer.json file
+#   $@ - Stack names (remaining args)
+customize_devcontainer_plugins() {
+	local devcontainer_json=$1
+	shift
+
+	local plugin_ids=()
+	local stack plugin
+	for stack in "$@"; do
+		plugin=$(stack_jetbrains_plugin "$stack")
+		if [[ -n "$plugin" ]]; then
+			plugin_ids+=("$plugin")
+		fi
+	done
+
+	if [[ ${#plugin_ids[@]} -eq 0 ]]; then
+		return 0
+	fi
+
+	# Build the JSON array literal: "id1", "id2", "id3"
+	local joined=""
+	local id
+	for id in "${plugin_ids[@]}"; do
+		if [[ -n "$joined" ]]; then
+			joined+=", "
+		fi
+		joined+="\"${id}\""
+	done
+
+	# Rewrite `"plugins": []` in place. The literal is uniquely emitted by
+	# apply_ide_customizations, so a simple line rewrite is safe here.
+	local tmpfile="${devcontainer_json}.tmp"
+	local line
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		if [[ "$line" == *'"plugins": []'* ]]; then
+			printf '%s\n' "${line//\"plugins\": \[\]/\"plugins\": [${joined}]}"
+		else
+			printf '%s\n' "$line"
+		fi
+	done < "$devcontainer_json" > "$tmpfile"
+	mv "$tmpfile" "$devcontainer_json"
 }
 
 # Adds VS Code extensions for selected stacks to devcontainer.json.
@@ -175,6 +229,52 @@ apply_inline_placeholders() {
 	mv "$tmpfile" "$file"
 }
 
+# Adds stack-contributed environment variables (e.g. uv's TLS config for the
+# python stack) to services.agent.environment in compose-all.yml.
+# Args:
+#   $1 - Path to compose-all.yml
+#   $@ - Stack names (remaining args)
+customize_compose_stack_environment() {
+	local compose_file=$1
+	shift
+
+	local entries="" stack env
+	for stack in "$@"; do
+		env=$(stack_env_entries "$stack")
+		[[ -n "$env" ]] && entries="${entries}${env}"$'\n'
+	done
+
+	merge_compose_agent_environment "$compose_file" "$entries"
+}
+
+# Merges KEY=value environment entries into services.agent.environment in
+# compose-all.yml. Appends to any entries already present (rather than
+# overwriting) so agent- and stack-contributed variables coexist regardless
+# of call order. Building the array structurally avoids fragile
+# line-counting in compose-all.yml. No-op when passed no entries — compose
+# rejects `environment: {}`.
+# Args:
+#   $1 - Path to compose-all.yml
+#   $2 - Newline-separated "KEY=value" entries (empty lines ignored)
+merge_compose_agent_environment() {
+	local compose_file=$1
+	local entries=$2
+
+	local entry yq_array=""
+	while IFS= read -r entry; do
+		[[ -z "$entry" ]] && continue
+		# Wrap each entry as a JSON string for yq's expression parser;
+		# escape backslashes and double quotes so KEY=VALUE pairs with
+		# special characters round-trip correctly.
+		local escaped="${entry//\\/\\\\}"
+		escaped="${escaped//\"/\\\"}"
+		yq_array+="\"${escaped}\","
+	done <<< "$entries"
+	[[ -z "$yq_array" ]] && return 0
+	yq_array="[${yq_array%,}]"
+	yq -i ".services.agent.environment = ((.services.agent.environment // []) + ${yq_array})" "$compose_file"
+}
+
 # Replaces provider-specific placeholders in generated templates.
 # Args:
 #   $1 - Path to devcontainer directory
@@ -201,6 +301,10 @@ customize_agent_templates() {
 			mitm_addon_file="mitmproxy_addon_codex.py"
 			mitm_http2="true"
 			;;
+		copilot)
+			mitm_addon_file="mitmproxy_addon_copilot.py"
+			mitm_http2="true"
+			;;
 		claude|*)
 			mitm_addon_file="mitmproxy_addon_claude.py"
 			mitm_http2="true"
@@ -219,23 +323,7 @@ customize_agent_templates() {
 		"__AGENT_EXTENSION__" "$extension_replacement" \
 		"__AGENT_SETTINGS__"  "$settings_block"
 
-	# services.agent.environment is added via yq only when the agent
-	# contributes entries — compose rejects `environment: {}`. Building the
-	# array structurally avoids fragile line-counting in compose-all.yml.
-	if [[ -n "$environment_entries" ]]; then
-		local entry yq_array=""
-		while IFS= read -r entry; do
-			[[ -z "$entry" ]] && continue
-			# Wrap each entry as a JSON string for yq's expression parser;
-			# escape backslashes and double quotes so KEY=VALUE pairs with
-			# special characters round-trip correctly.
-			local escaped="${entry//\\/\\\\}"
-			escaped="${escaped//\"/\\\"}"
-			yq_array+="\"${escaped}\","
-		done <<< "$environment_entries"
-		yq_array="[${yq_array%,}]"
-		yq -i ".services.agent.environment = ${yq_array}" "$devcontainer_dir/compose-all.yml"
-	fi
+	merge_compose_agent_environment "$devcontainer_dir/compose-all.yml" "$environment_entries"
 
 	apply_template_placeholders \
 		"$devcontainer_dir/Dockerfile.app" \
@@ -254,5 +342,6 @@ customize_agent_templates() {
 		"$devcontainer_dir/sandcat/compose-proxy.yml" \
 		"__AGENT_MITM_ADDON__"           "$mitm_addon_file" \
 		"__MITM_HTTP2__"                 "$mitm_http2" \
-		"__AGENT_MITM_STREAMING_FLAGS__" "$mitm_streaming_flags"
+		"__AGENT_MITM_STREAMING_FLAGS__" "$mitm_streaming_flags" \
+		"__MITMPROXY_VERSION__"          "$SCT_MITMPROXY_VERSION"
 }

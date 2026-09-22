@@ -260,3 +260,104 @@ func TestProxyMutationsMatchBash(t *testing.T) {
 		})
 	}
 }
+
+// upstream_ca_bundles is off in every harness case (nobody has a bundle
+// configured under a throwaway HOME), so it gets its own parity check with a
+// fixture bundle on disk.
+func TestUpstreamCABundlesMatchBash(t *testing.T) {
+	requireBashTooling(t)
+
+	fixtures := t.TempDir()
+	pem := "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+	bundle1 := filepath.Join(fixtures, "corp-root.pem")
+	bundle2 := filepath.Join(fixtures, "proxy ca.crt") // space and .crt: exercises naming
+	for _, p := range []string{bundle1, bundle2} {
+		if err := os.WriteFile(p, []byte(pem), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// user settings carries one bundle, project settings.local.json the other.
+	home := t.TempDir()
+	userSettings := filepath.Join(home, ".config", "sandcat", "settings.json")
+	if err := os.MkdirAll(filepath.Dir(userSettings), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(userSettings, []byte(`{"upstream_ca_bundles":["`+bundle1+`"]}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	project := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(project, ".sandcat"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, ".sandcat", "settings.local.json"),
+		[]byte(`{"upstream_ca_bundles":["`+bundle2+`"]}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tmpl, err := os.ReadFile(repoPath(t, "cli/templates/devcontainer/sandcat/compose-proxy.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bashFile := filepath.Join(t.TempDir(), "compose-proxy.yml")
+	if err := os.WriteFile(bashFile, tmpl, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("bash", "-c",
+		`set -euo pipefail; source "$SCT_LIBDIR/composefile.bash"; apply_upstream_ca_bundles "$1" "$2"; cat "$1"`,
+		"bash", bashFile, project)
+	cmd.Env = append(os.Environ(), "HOME="+home, "SCT_LIBDIR="+repoPath(t, "cli/lib"))
+	want, err := cmd.Output()
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			t.Fatalf("bash failed: %v\n%s", err, ee.Stderr)
+		}
+		t.Fatal(err)
+	}
+
+	goFile := filepath.Join(t.TempDir(), "compose-proxy.yml")
+	if err := os.WriteFile(goFile, tmpl, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := Load(goFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundles := ReadUpstreamCABundles(userSettings, project)
+	if len(bundles) != 2 {
+		t.Fatalf("expected 2 bundles, got %v", bundles)
+	}
+	if err := f.ApplyUpstreamCABundles(bundles); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("output differs from bash\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+func TestUpstreamCABundlesRejectsBadPaths(t *testing.T) {
+	f, err := Load(repoPath(t, "cli/templates/devcontainer/sandcat/compose-proxy.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := f.Bytes()
+
+	notPEM := filepath.Join(t.TempDir(), "x.pem")
+	if err := os.WriteFile(notPEM, []byte("nope"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"relative.pem", filepath.Join(t.TempDir(), "missing.pem"), notPEM} {
+		if err := f.ApplyUpstreamCABundles([]string{p}); err == nil {
+			t.Errorf("%q should be rejected", p)
+		}
+	}
+	// The document must be untouched after a rejected bundle.
+	if after, _ := f.Bytes(); string(after) != string(before) {
+		t.Error("compose file changed despite validation failure")
+	}
+}

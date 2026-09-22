@@ -107,10 +107,10 @@ func newProxyCmd() *cobra.Command {
 	}
 }
 
-func newRestartProxyCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "restart-proxy",
-		Short: "Restart the proxy stack to pick up settings changes",
+func newRestartCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "restart",
+		Short: "Restart the proxy stack (and re-link the agent) to pick up settings changes",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			c, err := composeForCwd()
@@ -121,12 +121,31 @@ func newRestartProxyCmd() *cobra.Command {
 				log.Warn("Proxy service is not running.")
 				return nil
 			}
+			// Captured before anything restarts: the agent is only re-linked
+			// if it was up when the user asked.
+			agentWasRunning := c.RunningServices("agent") != ""
+
 			log.Info("Restarting proxy service...")
-			for _, args := range [][]string{
+			steps := [][]string{
 				{"restart", "mitmproxy"},
+				// Wait for health before touching wg-client — a plain restart
+				// bypasses the compose depends_on health gate.
 				{"up", "-d", "--wait", "--wait-timeout", "60", "mitmproxy"},
 				{"restart", "wg-client"},
-			} {
+			}
+			if agentWasRunning {
+				// The agent runs with network_mode: service:wg-client, which
+				// Docker resolves to a netns fd at agent start. Restarting
+				// wg-client creates a fresh netns but the agent's fd still
+				// points at the old one, so DNS and all outbound traffic
+				// break inside it (#69). Waiting for wg-client to be healthy
+				// first guarantees the agent re-links to the ready netns.
+				steps = append(steps,
+					[]string{"up", "-d", "--wait", "--wait-timeout", "60", "wg-client"},
+					[]string{"restart", "agent"},
+				)
+			}
+			for _, args := range steps {
 				if err := c.Run(args...); err != nil {
 					return childExit(err)
 				}
@@ -135,6 +154,17 @@ func newRestartProxyCmd() *cobra.Command {
 			return nil
 		},
 	}
+	return cmd
+}
+
+// newRestartProxyCmd keeps the pre-#93 name working as a hidden alias so
+// existing scripts don't break; the bash dropped it outright.
+func newRestartProxyCmd() *cobra.Command {
+	cmd := newRestartCmd()
+	cmd.Use = "restart-proxy"
+	cmd.Hidden = true
+	cmd.Deprecated = "use `sandcat restart`"
+	return cmd
 }
 
 func newEditCmd() *cobra.Command {

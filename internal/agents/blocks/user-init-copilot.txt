@@ -1,0 +1,8 @@
+# Copilot CLI reads $COPILOT_GITHUB_TOKEN directly from environment —
+# sandcat.env has already been sourced with the placeholder or
+# 1Password-resolved value. Basic health check on first start;
+# failure is non-fatal.
+if command -v copilot >/dev/null 2>&1; then
+    copilot --version >/dev/null 2>&1 \
+        || echo "sandcat: copilot --version failed (non-fatal)" >&2
+fi

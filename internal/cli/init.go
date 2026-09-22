@@ -13,7 +13,6 @@ import (
 	"github.com/jehoctor/snadcat/internal/config"
 	"github.com/jehoctor/snadcat/internal/devcontainer"
 	"github.com/jehoctor/snadcat/internal/initialize"
-	"github.com/jehoctor/snadcat/internal/log"
 	"github.com/jehoctor/snadcat/internal/project"
 )
 
@@ -38,13 +37,13 @@ func newInitCmd() *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&opts.Name, "name", "", "Project name for Docker Compose")
 	f.StringVar(&opts.Path, "path", "", "Project directory path (default \".\")")
-	f.StringVar(&opts.Agent, "agent", "", "Agent: claude, cursor, codex")
+	f.StringVar(&opts.Agent, "agent", "", "Agent: claude, cursor, codex, copilot")
 	f.StringVar(&opts.IDE, "ide", "", "IDE: vscode, jetbrains, none")
 	f.StringVar(&opts.Stacks, "stacks", "", "Comma-separated development stacks")
 	f.StringVar(&opts.Proxy, "proxy", "", "Proxy UI mode: web, tui")
 	f.StringVar(&opts.SecretProvider, "secret-provider", "", "Secret backend: none, 1password, protonpass")
 	f.StringVar(&opts.SecretProvider, "sp", "", "Alias for --secret-provider")
-	f.StringVar(&opts.Features, "features", "", "Comma-separated features: tui, no-shared-cache, no-gitignore, no-rtk")
+	f.StringVar(&opts.Features, "features", "", "Comma-separated features: tui, no-shared-cache, no-gitignore, no-rtk, strict-network")
 	f.BoolVar(&opts.OnePasswordAlias, "1password", false, "Deprecated: same as --secret-provider 1password")
 
 	cmd.AddCommand(newInitSettingsCmd(), newInitDevcontainerCmd())
@@ -53,18 +52,22 @@ func newInitCmd() *cobra.Command {
 
 // `sandcat init settings <path>` writes only the project settings file.
 func newInitSettingsCmd() *cobra.Command {
-	return &cobra.Command{
+	var strict bool
+	var stacksArg string
+	cmd := &cobra.Command{
 		Use:   "settings <path>",
 		Short: "Write only the project settings file",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			if err := config.WriteProjectSettings(args[0]); err != nil {
-				return err
-			}
-			log.Info("Settings file created at %s/settings.json", project.Dir)
-			return nil
+			return config.WriteProjectSettings(args[0], config.ProjectSettingsOptions{
+				StrictNetwork: strict,
+				Stacks:        strings.Fields(stacksArg),
+			})
 		},
 	}
+	cmd.Flags().BoolVar(&strict, "strict-network", false, "Stack network presets instead of the allow-all-GET wildcard")
+	cmd.Flags().StringVar(&stacksArg, "stacks", "", "Space-separated resolved stack names whose presets seed the strict policy")
+	return cmd
 }
 
 // `sandcat init devcontainer` writes only the .devcontainer directory, with
@@ -103,10 +106,15 @@ func newInitDevcontainerCmd() *cobra.Command {
 			mounts := compose.DefaultOptions()
 			mounts.Agent = agent
 			mounts.ApplyEnvOverrides(os.LookupEnv)
+			userSettings, err := config.UserSettingsPath()
+			if err != nil {
+				return err
+			}
 			return devcontainer.Generate(devcontainer.Options{
 				ProjectPath:    abs,
 				ProjectName:    name,
 				SettingsFile:   settingsFile,
+				UserSettings:   userSettings,
 				Agent:          agent,
 				IDE:            ide,
 				Stacks:         strings.Fields(stacksArg),
@@ -120,7 +128,7 @@ func newInitDevcontainerCmd() *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&settingsFile, "settings-file", "", "Settings file path, relative to the project directory")
 	f.StringVar(&projectPath, "project-path", "", "Project directory")
-	f.StringVar(&agentName, "agent", "", "Agent: claude, cursor, codex")
+	f.StringVar(&agentName, "agent", "", "Agent: claude, cursor, codex, copilot")
 	f.StringVar(&ide, "ide", "none", "IDE: vscode, jetbrains, none")
 	f.StringVar(&name, "name", "", "Project name")
 	f.StringVar(&stacksArg, "stacks", "", "Space-separated resolved stack names")
