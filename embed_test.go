@@ -1,4 +1,4 @@
-package sandcat
+package snadcat
 
 import (
 	"io/fs"

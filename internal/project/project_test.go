@@ -89,7 +89,7 @@ func TestFindComposeFile(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error before init has run")
 	}
-	if !strings.Contains(err.Error(), "sandcat init") {
+	if !strings.Contains(err.Error(), "snadcat init") {
 		t.Errorf("error should point at init, got %v", err)
 	}
 

@@ -16,7 +16,7 @@ import (
 // plans/2026-08-07-go-port.md §1.
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "sandcat",
+		Use:   "snadcat",
 		Short: "Docker & dev container setup for securely running AI agents",
 		// Errors are reported by main with the right exit code; cobra's own
 		// usage dump on every failure is noise.

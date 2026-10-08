@@ -24,8 +24,8 @@ var block string
 // Markers bracketing the managed block. Both are matched as whole lines so a
 // user rule that merely contains the text can't be mistaken for a marker.
 const (
-	StartMarker = "# Sandcat"
-	EndMarker   = "# /Sandcat"
+	StartMarker = "# Snadcat"
+	EndMarker   = "# /Snadcat"
 )
 
 // gitignorePath returns the .gitignore path, and whether projectPath is a git

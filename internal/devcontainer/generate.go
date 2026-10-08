@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	sandcat "github.com/jehoctor/snadcat"
+	snadcat "github.com/jehoctor/snadcat"
 	"github.com/jehoctor/snadcat/internal/agents"
 	"github.com/jehoctor/snadcat/internal/compose"
 	"github.com/jehoctor/snadcat/internal/devbox"
@@ -23,7 +23,7 @@ type Options struct {
 	// e.g. ".sandcat/settings.json".
 	SettingsFile string
 
-	// UserSettings is the absolute path of ~/.config/sandcat/settings.json,
+	// UserSettings is the absolute path of ~/.config/snadcat/settings.json,
 	// read for upstream_ca_bundles. Empty means none configured there.
 	UserSettings string
 
@@ -182,7 +182,7 @@ func Generate(o Options) error {
 // overwriting files that already exist. Executable bits are set on scripts
 // since embed does not carry modes.
 func copyTemplates(dir string) error {
-	sub, err := fs.Sub(sandcat.Templates, "devcontainer")
+	sub, err := fs.Sub(snadcat.Templates, "devcontainer")
 	if err != nil {
 		return err
 	}

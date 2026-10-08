@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/jehoctor/snadcat/internal/log"
+	"github.com/jehoctor/snadcat/internal/testutil"
 )
 
 // Parity with the user-settings functions in cli/libexec/init/init. HOME is
@@ -82,7 +83,7 @@ func goUserSettings(t *testing.T, seed string, run func()) string {
 	t.Cleanup(func() { gitConfig = old })
 
 	if seed != "" {
-		dir := filepath.Join(home, ".config", "sandcat")
+		dir := filepath.Join(home, ".config", "snadcat")
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -91,11 +92,11 @@ func goUserSettings(t *testing.T, seed string, run func()) string {
 		}
 	}
 	run()
-	b, err := os.ReadFile(filepath.Join(home, ".config", "sandcat", "settings.json"))
+	b, err := os.ReadFile(filepath.Join(home, ".config", "snadcat", "settings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(b)
+	return testutil.Normalize(string(b))
 }
 
 func must(t *testing.T, err error) {
@@ -203,7 +204,7 @@ func goUserSettingsNoRead(t *testing.T, seed string, run func()) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	if seed != "" {
-		dir := filepath.Join(home, ".config", "sandcat")
+		dir := filepath.Join(home, ".config", "snadcat")
 		must(t, os.MkdirAll(dir, 0o755))
 		must(t, os.WriteFile(filepath.Join(dir, "settings.json"), []byte(seed), 0o644))
 	}
@@ -244,16 +245,16 @@ func TestWriteProjectSettingsMatchesBash(t *testing.T) {
 			}
 
 			goDir := t.TempDir()
-			must(t, WriteProjectSettings(filepath.Join(goDir, ".sandcat", "settings.json"),
+			must(t, WriteProjectSettings(filepath.Join(goDir, ".snadcat", "settings.json"),
 				ProjectSettingsOptions{StrictNetwork: tc.strict, Stacks: tc.stacks}))
 
 			for _, name := range []string{"settings.json", "settings.local.json"} {
 				want, err := os.ReadFile(filepath.Join(bashDir, ".sandcat", name))
 				must(t, err)
-				got, err := os.ReadFile(filepath.Join(goDir, ".sandcat", name))
+				got, err := os.ReadFile(filepath.Join(goDir, ".snadcat", name))
 				must(t, err)
-				if string(got) != string(want) {
-					t.Errorf("%s differs\n--- bash ---\n%s\n--- go ---\n%s", name, want, got)
+				if g := testutil.Normalize(string(got)); g != string(want) {
+					t.Errorf("%s differs\n--- bash ---\n%s\n--- go ---\n%s", name, want, g)
 				}
 			}
 		})
@@ -266,7 +267,7 @@ func TestWriteProjectSettingsKeepsExistingLocal(t *testing.T) {
 	log.Out = &bytes.Buffer{}
 	t.Cleanup(func() { log.Out = old })
 
-	dir := filepath.Join(t.TempDir(), ".sandcat")
+	dir := filepath.Join(t.TempDir(), ".snadcat")
 	must(t, os.MkdirAll(dir, 0o755))
 	local := filepath.Join(dir, "settings.local.json")
 	const existing = `{"secrets":{"X":{"value":"real"}}}` + "\n"

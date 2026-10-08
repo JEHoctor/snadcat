@@ -68,7 +68,7 @@ type Agent struct {
 var all = []Agent{
 	{
 		Name:               "claude",
-		MountEnvVar:        "SANDCAT_MOUNT_CLAUDE_CONFIG",
+		MountEnvVar:        "SNADCAT_MOUNT_CLAUDE_CONFIG",
 		VSCodeExtension:    "anthropic.claude-code",
 		APIKeyHelp:         "ANTHROPIC_API_KEY  your Anthropic API key (for Claude Code)",
 		OpAPIKeyHelp:       `ANTHROPIC_API_KEY  "op": "op://vault/Anthropic API Key/credential"`,
@@ -85,7 +85,7 @@ var all = []Agent{
 	},
 	{
 		Name:               "cursor",
-		MountEnvVar:        "SANDCAT_MOUNT_CURSOR_CONFIG",
+		MountEnvVar:        "SNADCAT_MOUNT_CURSOR_CONFIG",
 		VSCodeExtension:    "anysphere.cursor",
 		APIKeyHelp:         "CURSOR_API_KEY     your Cursor API key (for Cursor CLI)",
 		OpAPIKeyHelp:       `CURSOR_API_KEY     "op": "op://vault/Cursor API Key/credential"`,
@@ -108,7 +108,7 @@ var all = []Agent{
 	},
 	{
 		Name:            "codex",
-		MountEnvVar:     "SANDCAT_MOUNT_CODEX_CONFIG",
+		MountEnvVar:     "SNADCAT_MOUNT_CODEX_CONFIG",
 		VSCodeExtension: "openai.chatgpt",
 		APIKeyHelp:      "OPENAI_API_KEY     your OpenAI API key (for Codex CLI)",
 		OpAPIKeyHelp:    `OPENAI_API_KEY     "op": "op://vault/OpenAI API Key/credential"`,
@@ -127,7 +127,7 @@ var all = []Agent{
 
 var copilot = Agent{
 	Name:            "copilot",
-	MountEnvVar:     "SANDCAT_MOUNT_COPILOT_CONFIG",
+	MountEnvVar:     "SNADCAT_MOUNT_COPILOT_CONFIG",
 	VSCodeExtension: "GitHub.copilot",
 	APIKeyHelp:      `COPILOT_GITHUB_TOKEN  fine-grained GitHub PAT with "Copilot Requests" permission (or $(gh auth token))`,
 	OpAPIKeyHelp:    `COPILOT_GITHUB_TOKEN  "op": "op://vault/GitHub Copilot Token/credential"`,

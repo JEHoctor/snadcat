@@ -15,6 +15,7 @@ import (
 	"github.com/jehoctor/snadcat/internal/compose"
 	"github.com/jehoctor/snadcat/internal/log"
 	"github.com/jehoctor/snadcat/internal/stacks"
+	"github.com/jehoctor/snadcat/internal/testutil"
 )
 
 // Whole-tree parity with cli/libexec/init/devcontainer: every generated file
@@ -47,11 +48,13 @@ func requireBashTooling(t *testing.T) {
 func newProject(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".sandcat"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, ".sandcat", "settings.json"), []byte("{}\n"), 0o644); err != nil {
-		t.Fatal(err)
+	for _, dir := range []string{".sandcat", ".snadcat"} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, dir, "settings.json"), []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return root
 }
@@ -108,7 +111,8 @@ func runGo(t *testing.T, c matrixCase) string {
 	mounts := compose.DefaultOptions()
 	mounts.Agent = a
 	mounts.ApplyEnvOverrides(func(k string) (string, bool) {
-		v, ok := c.env[k]
+		// The matrix is written in the bash's SANDCAT_* names.
+		v, ok := c.env[strings.Replace(k, "SNADCAT_", "SANDCAT_", 1)]
 		return v, ok
 	})
 
@@ -119,7 +123,7 @@ func runGo(t *testing.T, c matrixCase) string {
 	err := Generate(Options{
 		ProjectPath:    root,
 		ProjectName:    "demo-sandbox",
-		SettingsFile:   ".sandcat/settings.json",
+		SettingsFile:   ".snadcat/settings.json",
 		Agent:          a,
 		IDE:            c.ide,
 		Stacks:         c.stacks,
@@ -134,7 +138,8 @@ func runGo(t *testing.T, c matrixCase) string {
 	return root
 }
 
-// snapshot reads every file under dir into a path→content map.
+// snapshot reads every file under dir into a path→content map, with snadcat
+// naming normalized so the Go tree compares against the bash one.
 func snapshot(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
@@ -147,7 +152,7 @@ func snapshot(t *testing.T, dir string) map[string]string {
 			return err
 		}
 		rel, _ := filepath.Rel(dir, p)
-		out[filepath.ToSlash(rel)] = string(b)
+		out[testutil.Normalize(filepath.ToSlash(rel))] = testutil.Normalize(string(b))
 		return nil
 	})
 	if err != nil {
@@ -251,7 +256,7 @@ func TestGenerateSecondRunPreservesToolsJSON(t *testing.T) {
 	log.Out = &bytes.Buffer{}
 	t.Cleanup(func() { log.Out = old })
 	if err := Generate(Options{
-		ProjectPath: root, ProjectName: "demo-sandbox", SettingsFile: ".sandcat/settings.json",
+		ProjectPath: root, ProjectName: "demo-sandbox", SettingsFile: ".snadcat/settings.json",
 		Agent: a, IDE: "vscode", Stacks: []string{"go"}, RTKEnabled: true, Mounts: mounts,
 	}); err != nil {
 		t.Fatal(err)

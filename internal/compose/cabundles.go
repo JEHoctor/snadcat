@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/jehoctor/snadcat/internal/jsonfile"
+	"github.com/jehoctor/snadcat/internal/project"
 )
 
 // ReadUpstreamCABundles returns the merged `upstream_ca_bundles` list from
@@ -20,7 +21,7 @@ import (
 // "not configured" rather than aborting init.
 func ReadUpstreamCABundles(userSettings, projectDir string) []string {
 	var out []string
-	for _, f := range []string{userSettings, filepath.Join(projectDir, ".sandcat", "settings.local.json")} {
+	for _, f := range []string{userSettings, filepath.Join(projectDir, project.Dir, "settings.local.json")} {
 		obj, err := jsonfile.Load(f)
 		if err != nil {
 			continue

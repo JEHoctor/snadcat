@@ -62,7 +62,7 @@ func TestSharedCaches(t *testing.T) {
 	if len(got) != 6 {
 		t.Fatalf("got %d java caches, want 6", len(got))
 	}
-	if got[0].String() != "sandcat-cache-maven:/home/vscode/.m2/repository" {
+	if got[0].String() != "snadcat-cache-maven:/home/vscode/.m2/repository" {
 		t.Errorf("unexpected first cache: %q", got[0])
 	}
 }

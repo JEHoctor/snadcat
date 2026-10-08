@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"github.com/jehoctor/snadcat/internal/testutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -142,7 +143,7 @@ func TestHostConfigPaths(t *testing.T) {
 
 func TestEnsureHostConfigPathsCreatesDirsAndSeedsJSON(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SANDCAT_MOUNT_CURSOR_CONFIG", "true")
+	t.Setenv("SNADCAT_MOUNT_CURSOR_CONFIG", "true")
 
 	cursor, _ := Get("cursor")
 	if err := cursor.EnsureHostConfigPaths(home, "demo-sandbox"); err != nil {
@@ -178,7 +179,7 @@ func TestEnsureHostConfigPathsCreatesDirsAndSeedsJSON(t *testing.T) {
 // A user's real config must survive re-running init.
 func TestEnsureHostConfigPathsDoesNotClobberExistingFiles(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SANDCAT_MOUNT_CURSOR_CONFIG", "true")
+	t.Setenv("SNADCAT_MOUNT_CURSOR_CONFIG", "true")
 
 	path := filepath.Join(home, ".cursor", "mcp.json")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -205,7 +206,7 @@ func TestEnsureHostConfigPathsDoesNotClobberExistingFiles(t *testing.T) {
 
 func TestEnsureHostConfigPathsSkippedWhenMountDisabled(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SANDCAT_MOUNT_CURSOR_CONFIG", "false")
+	t.Setenv("SNADCAT_MOUNT_CURSOR_CONFIG", "false")
 
 	cursor, _ := Get("cursor")
 	if err := cursor.EnsureHostConfigPaths(home, "demo-sandbox"); err != nil {
@@ -285,8 +286,8 @@ func TestBlocksMatchBashOutput(t *testing.T) {
 				if !ok {
 					t.Skip("bash originals unavailable")
 				}
-				if tc.got != want {
-					t.Errorf("%s:\n got: %q\nwant: %q", tc.label, tc.got, want)
+				if got := testutil.Normalize(tc.got); got != want {
+					t.Errorf("%s:\n got: %q\nwant: %q", tc.label, got, want)
 				}
 			}
 		})

@@ -74,9 +74,9 @@ func TestManageGitignoreStatuses(t *testing.T) {
 		want    string
 	}{
 		{false, "skipped (disabled)"},
-		{true, "added Sandcat block"},
-		{true, "Sandcat block already present"},
-		{false, "removed Sandcat block (disabled)"},
+		{true, "added Snadcat block"},
+		{true, "Snadcat block already present"},
+		{false, "removed Snadcat block (disabled)"},
 	}
 	for _, s := range steps {
 		if got := manageGitignore(repo, s.enabled); got != s.want {
@@ -89,16 +89,16 @@ func TestManageGitignoreStatuses(t *testing.T) {
 }
 
 func TestEnvBool(t *testing.T) {
-	os.Unsetenv("SANDCAT_TEST_TOGGLE")
-	if !envBool("SANDCAT_TEST_TOGGLE", true) || envBool("SANDCAT_TEST_TOGGLE", false) {
+	os.Unsetenv("SNADCAT_TEST_TOGGLE")
+	if !envBool("SNADCAT_TEST_TOGGLE", true) || envBool("SNADCAT_TEST_TOGGLE", false) {
 		t.Error("unset should return the default")
 	}
-	t.Setenv("SANDCAT_TEST_TOGGLE", "false")
-	if envBool("SANDCAT_TEST_TOGGLE", true) {
+	t.Setenv("SNADCAT_TEST_TOGGLE", "false")
+	if envBool("SNADCAT_TEST_TOGGLE", true) {
 		t.Error("\"false\" should disable")
 	}
-	t.Setenv("SANDCAT_TEST_TOGGLE", "yes")
-	if envBool("SANDCAT_TEST_TOGGLE", true) {
+	t.Setenv("SNADCAT_TEST_TOGGLE", "yes")
+	if envBool("SNADCAT_TEST_TOGGLE", true) {
 		t.Error("only the literal \"true\" enables")
 	}
 }

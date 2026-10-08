@@ -47,12 +47,12 @@ var ides = []string{"vscode", "jetbrains", "none"}
 var featureLabels = []string{
 	"tui (mitmproxy console instead of web UI)",
 	"no-shared-cache (per-project dep cache instead of shared)",
-	"no-gitignore (do not append Sandcat block to .gitignore)",
+	"no-gitignore (do not append Snadcat block to .gitignore)",
 	"no-rtk (do not install rtk shell hook)",
 	"strict-network (stack presets instead of allow-all-GET wildcard)",
 }
 
-// envBool reads a SANDCAT_* toggle: unset means def, otherwise only the
+// envBool reads a SNADCAT_* toggle: unset means def, otherwise only the
 // literal "true" enables.
 func envBool(name string, def bool) bool {
 	v, ok := os.LookupEnv(name)
@@ -139,9 +139,9 @@ func Run(o Options) error {
 
 	// Optional features.
 	proxyMode := o.Proxy
-	gitignoreEnabled := envBool("SANDCAT_GITIGNORE", true)
-	rtkEnabled := envBool("SANDCAT_RTK", true)
-	strictNetwork := envBool("SANDCAT_STRICT_NETWORK", false)
+	gitignoreEnabled := envBool("SNADCAT_GITIGNORE", true)
+	rtkEnabled := envBool("SNADCAT_RTK", true)
+	strictNetwork := envBool("SNADCAT_STRICT_NETWORK", false)
 	sharedCacheDisabled := false
 	applyFeature := func(f string) error {
 		switch f {
@@ -286,9 +286,9 @@ func manageGitignore(projectPath string, enabled bool) string {
 			return "failed"
 		}
 		if had {
-			return "Sandcat block already present"
+			return "Snadcat block already present"
 		}
-		return "added Sandcat block"
+		return "added Snadcat block"
 	}
 	// Symmetric: disabling removes a previously-added block so the toggle
 	// actually converges to the declared state.
@@ -297,7 +297,7 @@ func manageGitignore(projectPath string, enabled bool) string {
 		return "failed"
 	}
 	if had {
-		return "removed Sandcat block (disabled)"
+		return "removed Snadcat block (disabled)"
 	}
 	return "skipped (disabled)"
 }

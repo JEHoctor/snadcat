@@ -6,7 +6,7 @@
 // place during the port means the bash CLI and the Go CLI read the same bytes,
 // which is what makes the differential harness a real parity oracle. At cutover
 // this moves to internal/templates/assets/. See plans/2026-08-07-go-port.md §2.
-package sandcat
+package snadcat
 
 import (
 	"embed"

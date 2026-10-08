@@ -64,7 +64,7 @@ func (f *File) SetWorkspace(projectName string) error {
 	for _, v := range []struct{ entry, comment string }{
 		{"..:" + workspace, "Mount the project's code"},
 		{"../.devcontainer:" + workspace + "/.devcontainer:ro", "Read-only devcontainer directory"},
-		{"../.sandcat:" + workspace + "/.sandcat:ro", "Read-only settings directory"},
+		{"../.snadcat:" + workspace + "/.snadcat:ro", "Read-only settings directory"},
 	} {
 		if err := f.AddVolumeEntry(v.entry, true, v.comment); err != nil {
 			return err
@@ -75,7 +75,7 @@ func (f *File) SetWorkspace(projectName string) error {
 
 // settingsVolumeComment explains why a missing .sandcat directory is not an
 // error, since Docker will silently create one.
-const settingsVolumeComment = `Project-level settings (.sandcat/ directory). If the directory does
+const settingsVolumeComment = `Project-level settings (.snadcat/ directory). If the directory does
 not exist on the host, Docker creates an empty one and the addon
 simply finds no files — no error.`
 
@@ -161,7 +161,7 @@ func (f *File) AddIdeaReadonlyVolume(active bool) error {
 	return f.AddVolumeEntry("../.idea:/workspace/.idea:ro", active, "Read-only IntelliJ IDEA project directory")
 }
 
-const sharedCacheComment = "Shared dependency caches for the selected stacks (SANDCAT_MOUNT_SHARED_CACHE=false to disable)"
+const sharedCacheComment = "Shared dependency caches for the selected stacks (SNADCAT_MOUNT_SHARED_CACHE=false to disable)"
 
 // AddSharedCacheVolumes mounts the dependency caches contributed by the given
 // resolved stacks, and declares each as an external volume.

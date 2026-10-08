@@ -58,12 +58,12 @@ type Stack struct {
 // subdirectories are exposed — .m2/settings.xml, .gradle/daemon/, .ivy2/local/
 // and friends stay per-project inside agent-home.
 var jvmCaches = []CacheVolume{
-	{"sandcat-cache-maven", "/home/vscode/.m2/repository"},
-	{"sandcat-cache-coursier", "/home/vscode/.cache/coursier"},
-	{"sandcat-cache-gradle", "/home/vscode/.gradle/caches"},
-	{"sandcat-cache-gradle-wrapper", "/home/vscode/.gradle/wrapper/dists"},
-	{"sandcat-cache-ivy", "/home/vscode/.ivy2/cache"},
-	{"sandcat-cache-sbt-boot", "/home/vscode/.sbt/boot"},
+	{"snadcat-cache-maven", "/home/vscode/.m2/repository"},
+	{"snadcat-cache-coursier", "/home/vscode/.cache/coursier"},
+	{"snadcat-cache-gradle", "/home/vscode/.gradle/caches"},
+	{"snadcat-cache-gradle-wrapper", "/home/vscode/.gradle/wrapper/dists"},
+	{"snadcat-cache-ivy", "/home/vscode/.ivy2/cache"},
+	{"snadcat-cache-sbt-boot", "/home/vscode/.sbt/boot"},
 }
 
 // all is ordered as STACK_NAMES is in stacks.bash; the interactive picker

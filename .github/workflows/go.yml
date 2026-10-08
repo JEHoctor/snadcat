@@ -47,5 +47,5 @@ jobs:
       # the bash tree is removed (plans/2026-08-07-go-port.md §4.1, step 6e).
       - name: Differential harness
         run: |
-          go build -o sandcat ./cmd/sandcat
+          go build -o snadcat ./cmd/snadcat
           scripts/difftest.sh
