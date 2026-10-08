@@ -62,7 +62,11 @@ changelog:
 
 release:
   draft: false
-  prerelease: auto # v0.0.x and anything with a pre-release suffix
+  # Explicitly true, not "auto": auto only marks a release as a pre-release
+  # when the tag carries a semver pre-release suffix (v1.0.0-rc1), so v0.0.1
+  # would publish as stable. Every v0.0.x is a pre-release in substance —
+  # docker support is about to be removed — so say so. Revisit at v0.1.0.
+  prerelease: true
   header: |
     ## snadcat {{ .Tag }}
 
