@@ -4,9 +4,7 @@ __pycache__/
 # Go build output (cmd/snadcat)
 /snadcat
 /dist/
-# Written when either tool is run against this repo itself. The .sandcat
-# line goes when the bash CLI does.
+# Written when snadcat is run against this repo itself.
 .snadcat/settings.local.json
-.sandcat/settings.local.json
 .devcontainer
 .orca
