@@ -52,7 +52,7 @@ touching the area it covers. The Go port's plan of record is
   until bash is removed.
 - **A `sandcat` may already be installed on your machine** (e.g. an upstream checkout on
   `PATH`). Be deliberate about which one you are exercising: the system install, the bash
-  CLI in this tree (`cli/bin/sandcat`), or the Go CLI (`./sandcat` from the build above, or
+  CLI in this tree (`cli/bin/sandcat`), or the Go CLI (`./snadcat` from the build above, or
   `go run ./cmd/snadcat`). Parity claims are only meaningful between the two in-tree
   versions at the same commit.
 - The bats submodules under `cli/support/` are only needed to run the bash test suite
