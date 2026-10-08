@@ -54,3 +54,42 @@ func TestRender(t *testing.T) {
 		})
 	}
 }
+
+// A `go install module/cmd@v0.0.1` build has no VCS stamps — its source came
+// from the module proxy — but must still report a version, since the README
+// documents that install path. Such a build cannot be produced from a
+// checkout, so the decision is tested directly.
+func TestChoose(t *testing.T) {
+	const rev = "c16d8fda1b2c3d4e5f60718293a4b5c6d7e8f900"
+	tests := []struct {
+		name        string
+		rev, stamp  string
+		dirty       bool
+		mainVersion string
+		want        string
+	}{
+		{
+			name: "checkout build: VCS stamps win over the module version",
+			rev:  rev, stamp: "2026-08-07T21:55:04Z", mainVersion: "v0.0.1",
+			want: "20260807.215504-c16d8fd",
+		},
+		{
+			name: "go install from the proxy: module version", mainVersion: "v0.0.1",
+			want: "v0.0.1",
+		},
+		{
+			name: "unversioned local build is not a version", mainVersion: "(devel)",
+			want: "",
+		},
+		{
+			name: "nothing at all", want: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := choose(tc.rev, tc.stamp, tc.dirty, tc.mainVersion); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

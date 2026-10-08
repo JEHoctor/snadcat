@@ -9,7 +9,8 @@
 // For unstamped developer builds we read the VCS stamps the Go toolchain
 // already embeds (vcs.revision / vcs.time / vcs.modified), which reproduces the
 // bash format without shelling out to git and works for `go build` and
-// `go run` alike.
+// `go run` alike. A `go install …@version` build has no VCS stamps, so it
+// falls back to the module version the toolchain records.
 package version
 
 import (
@@ -51,7 +52,27 @@ func fromBuildInfo() string {
 			dirty = s.Value == "true"
 		}
 	}
-	return render(rev, stamp, dirty)
+	return choose(rev, stamp, dirty, bi.Main.Version)
+}
+
+// choose picks the version from the stamps a build carries. Split out from
+// fromBuildInfo so every branch is testable: a real `go install …@version`
+// build cannot be produced from a checkout, so the module-version path would
+// otherwise be covered only by inference.
+//
+//   - VCS stamps win: a build from a checkout reports its commit.
+//   - Otherwise the module version, which is what `go install …@version`
+//     records. Without this the install path the README documents yields a
+//     binary that cannot report its own version.
+//   - "(devel)" means an unversioned local build and is not a version.
+func choose(rev, stamp string, dirty bool, mainVersion string) string {
+	if v := render(rev, stamp, dirty); v != "" {
+		return v
+	}
+	if mainVersion != "" && mainVersion != "(devel)" {
+		return mainVersion
+	}
+	return ""
 }
 
 // render builds the version string from raw VCS stamps. Split out from
