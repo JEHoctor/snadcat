@@ -50,7 +50,13 @@ snapshot:
 
 changelog:
   use: github
-  sort: asc
+  # No `sort`: goreleaser's sort compares commit *message text*, so "asc"
+  # produced an alphabetical list. Empty keeps git log order.
+  #
+  # The changelog spans previous-tag..this-tag, so the *first* tag in a repo
+  # gets the project's entire history — which for a fork means hundreds of
+  # upstream commits presented as this release's changes. v0.0.1-rc1 absorbed
+  # that; every later tag diffs against its predecessor and is bounded.
   filters:
     exclude:
       - "^docs:"
