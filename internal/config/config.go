@@ -1,7 +1,7 @@
 // Package config ports the settings-file handling from cli/libexec/init/init
 // and cli/libexec/init/settings: the per-user ~/.config/snadcat/settings.json
 // (git identity, API keys, secret-backend tokens) and the per-project
-// .sandcat/settings.json (network rules).
+// .snadcat/settings.json (network rules).
 package config
 
 import (
@@ -18,11 +18,12 @@ import (
 	"github.com/jehoctor/snadcat/internal/log"
 )
 
-// UserDir returns the user config directory, ~/.config/sandcat.
+// UserDir returns the user config directory, ~/.config/snadcat.
 //
-// It is derived from HOME rather than os.UserConfigDir so it matches the bash
-// (`$HOME/.config/sandcat`) on every platform, including macOS where
-// UserConfigDir would point at ~/Library/Application Support.
+// It is derived from HOME rather than os.UserConfigDir so the path is the same
+// on every platform, including macOS where UserConfigDir would point at
+// ~/Library/Application Support. (The bash CLI uses $HOME/.config/sandcat for
+// the same reason; the two deliberately differ only in the name.)
 func UserDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -206,18 +207,18 @@ type ProjectSettingsOptions struct {
 	// StrictNetwork replaces the template's allow-all-GET wildcard with one
 	// preset entry per stack. The names are expanded to concrete allow rules
 	// at proxy start by the mitmproxy addon, so the domain lists track the
-	// sandcat version instead of freezing in the project. With no stacks the
+	// snadcat version instead of freezing in the project. With no stacks the
 	// list is empty: everything beyond the user-settings layer is denied.
 	StrictNetwork bool
 	// Stacks are the resolved stack names whose presets seed a strict policy.
 	Stacks []string
 }
 
-// WriteProjectSettings writes .sandcat/settings.json from the template and,
+// WriteProjectSettings writes .snadcat/settings.json from the template and,
 // when missing, an empty settings.local.json next to it.
 //
 // The local file is the highest-precedence layer in the addon's settings
-// merge and is kept out of git by the Sandcat .gitignore block; unlike
+// merge and is kept out of git by the Snadcat .gitignore block; unlike
 // settings.json it is never overwritten on re-init, since it is where users
 // put real credentials.
 func WriteProjectSettings(path string, o ProjectSettingsOptions) error {

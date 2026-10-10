@@ -1,5 +1,5 @@
 // Package jsonfile is an order-preserving JSON document model with the small
-// set of edits `sandcat init` makes to settings files.
+// set of edits `snadcat init` makes to settings files.
 //
 // The bash implementation edits these files with `yq -o json`, which rewrites
 // the whole document in a fixed style: 2-space indent, every array element

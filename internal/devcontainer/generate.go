@@ -20,7 +20,7 @@ type Options struct {
 	ProjectName string
 
 	// SettingsFile is the project settings path relative to ProjectPath,
-	// e.g. ".sandcat/settings.json".
+	// e.g. ".snadcat/settings.json".
 	SettingsFile string
 
 	// UserSettings is the absolute path of ~/.config/snadcat/settings.json,

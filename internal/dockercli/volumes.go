@@ -22,7 +22,7 @@ const staleHomeTolerance = 60 * time.Second
 // then hidden under the stale volume overlay at /home/vscode.
 //
 // Every failure path is silent: this is advisory, and a missing volume
-// (first run) or unparsable timestamp must never block `sandcat run`.
+// (first run) or unparsable timestamp must never block `snadcat run`.
 func WarnStaleHomeVolume(d Docker, composeFile string) {
 	cf, err := compose.Load(composeFile)
 	if err != nil {
@@ -70,10 +70,10 @@ func parseDockerTime(s string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("unrecognised timestamp %q", s)
 }
 
-// SharedCacheLabel marks volumes created by sandcat for the `cache` commands.
+// SharedCacheLabel marks volumes created by snadcat for the `cache` commands.
 const SharedCacheLabel = "snadcat-shared-cache=true"
 
-// EnsureSharedCacheVolumes creates every sandcat-cache-* external volume the
+// EnsureSharedCacheVolumes creates every snadcat-cache-* external volume the
 // compose file references, so `compose up` doesn't fail with "external volume
 // not found". `volume create` is idempotent, so it runs unconditionally.
 func EnsureSharedCacheVolumes(d Docker, composeFile string) {

@@ -1,8 +1,8 @@
 // Package gitignore ports cli/lib/gitignore.bash.
 //
-// `sandcat init` appends a managed block to the project's .gitignore so users
+// `snadcat init` appends a managed block to the project's .gitignore so users
 // don't accidentally commit .devcontainer/ (regenerated on every init) or
-// .sandcat/settings.local.json (per-machine secrets), while re-including
+// .snadcat/settings.local.json (per-machine secrets), while re-including
 // devbox.tools.json via a negation pattern so the team-shared tool list still
 // travels with the repo.
 //

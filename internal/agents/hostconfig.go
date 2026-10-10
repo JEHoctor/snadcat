@@ -21,7 +21,7 @@ func (a Agent) MountEnabled() bool {
 // defaultContent returns the seed bytes for a freshly created config file.
 //
 // Empty files are fine for Markdown, but a zero-length JSON file breaks
-// Cursor CLI's parser and sandcat's own jq bootstrap — so those get minimal
+// Cursor CLI's parser and snadcat's own jq bootstrap — so those get minimal
 // valid documents. The point of writing anything at all is to make Docker bind
 // a *file* rather than inventing a directory at the mount target.
 func defaultContent(agent, filename string) []byte {

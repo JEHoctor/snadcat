@@ -15,7 +15,7 @@ func main() {
 		return
 	}
 	// A wrapped docker invocation already printed its own diagnostics;
-	// propagate its status so `sandcat compose ...` is transparent to
+	// propagate its status so `snadcat compose ...` is transparent to
 	// scripts and CI, without a second message on top.
 	var ee dockercli.ExitError
 	if errors.As(err, &ee) {

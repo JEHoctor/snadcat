@@ -4,7 +4,7 @@
 //
 // with the label colored and bold when stderr is a terminal. Everything goes to
 // stderr, including Info — the bash helpers redirect the whole _log function
-// there, and `sandcat init`'s summary output relies on it (stdout stays clean
+// there, and `snadcat init`'s summary output relies on it (stdout stays clean
 // for command substitution).
 package log
 

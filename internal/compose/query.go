@@ -16,8 +16,8 @@ func (f *File) ProjectName() string {
 }
 
 // ExternalCacheVolumes returns the names of top-level volumes declared
-// `external: true` whose name starts with sandcat-cache-. These are the shared
-// dependency caches `sandcat run` has to create before `compose up`, and
+// `external: true` whose name starts with snadcat-cache-. These are the shared
+// dependency caches `snadcat run` has to create before `compose up`, and
 // deliberately only those — other external volumes are the user's business.
 //
 // Mirrors `.volumes | to_entries[] | select(.value.external == true) |
