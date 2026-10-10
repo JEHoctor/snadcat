@@ -226,7 +226,7 @@ func rootPath(parts ...string) (string, error) {
 	return filepath.Join(append([]string{root}, parts...)...), nil
 }
 
-// `sandcat edit compose` restarts running containers after a change unless
+// `snadcat edit compose` restarts running containers after a change unless
 // told not to, since a compose edit that isn't applied is a common trap.
 func newEditComposeCmd() *cobra.Command {
 	var noRestart bool

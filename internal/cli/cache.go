@@ -14,7 +14,7 @@ import (
 
 // The cache commands inspect and remove the host-scoped shared dependency
 // cache volumes declared by compose.AddSharedCacheVolumes and created lazily
-// by `sandcat run`. Their output is plain stdout, not the log stream: it is
+// by `snadcat run`. Their output is plain stdout, not the log stream: it is
 // a report, and users pipe it.
 
 func newCacheCmd() *cobra.Command {
@@ -23,7 +23,7 @@ func newCacheCmd() *cobra.Command {
 		Use:   "cache",
 		Short: "Inspect and remove the shared dependency-cache volumes",
 		Args:  cobra.NoArgs,
-		// A bare `sandcat cache` lists, as libexec/cache/cache does.
+		// A bare `snadcat cache` lists, as libexec/cache/cache does.
 		RunE: list.RunE,
 	}
 	cmd.AddCommand(list, newCacheSizeCmd(), newCacheRmCmd())

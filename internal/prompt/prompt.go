@@ -2,7 +2,7 @@
 //
 // The bash originals write the prompt and option list to stderr and the result
 // to stdout, because callers capture them with command substitution. Go has no
-// such constraint, but the split is kept: it means piping `sandcat init`'s
+// such constraint, but the split is kept: it means piping `snadcat init`'s
 // stdout somewhere never swallows the questions.
 package prompt
 

@@ -9,16 +9,16 @@ import (
 	"strings"
 )
 
-// Dir is the per-project Sandcat directory (SCT_PROJECT_DIR).
+// Dir is the per-project snadcat directory (SCT_PROJECT_DIR).
 const Dir = ".snadcat"
 
 // ComposeFile is the generated compose file, relative to the project root.
 var ComposeFile = filepath.Join(".devcontainer", "compose-all.yml")
 
-// FindRoot walks up from start looking for a .sandcat, .git or .devcontainer
+// FindRoot walks up from start looking for a .snadcat, .git or .devcontainer
 // entry, and returns the first directory that has one.
 //
-// Any of the three counts: a project that has been init'd has .sandcat and
+// Any of the three counts: a project that has been init'd has .snadcat and
 // .devcontainer, while one that hasn't still resolves to its git root, which
 // is where init should write.
 func FindRoot(start string) (string, error) {

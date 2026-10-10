@@ -57,7 +57,7 @@ func (o *Options) ApplyEnvOverrides(lookup func(string) (string, bool)) {
 	set(&o.MountSharedCache, "SNADCAT_MOUNT_SHARED_CACHE")
 }
 
-// Customize applies every mutation `sandcat init` makes to compose-all.yml.
+// Customize applies every mutation `snadcat init` makes to compose-all.yml.
 //
 // The order matters: it decides where entries land in the volumes list and
 // which entry ends up carrying the accumulated foot comments, so it is kept

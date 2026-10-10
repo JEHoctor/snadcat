@@ -50,7 +50,7 @@ func newInitCmd() *cobra.Command {
 	return cmd
 }
 
-// `sandcat init settings <path>` writes only the project settings file.
+// `snadcat init settings <path>` writes only the project settings file.
 func newInitSettingsCmd() *cobra.Command {
 	var strict bool
 	var stacksArg string
@@ -70,7 +70,7 @@ func newInitSettingsCmd() *cobra.Command {
 	return cmd
 }
 
-// `sandcat init devcontainer` writes only the .devcontainer directory, with
+// `snadcat init devcontainer` writes only the .devcontainer directory, with
 // every choice supplied as a flag (there are no prompts at this level).
 func newInitDevcontainerCmd() *cobra.Command {
 	var (

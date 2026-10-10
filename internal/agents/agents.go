@@ -176,7 +176,7 @@ func Get(name string) (Agent, bool) {
 // the port keeps it.
 const FallbackAPIKeyHelp = "ANTHROPIC_API_KEY  API key for your selected agent"
 
-// CursorWorkspaceProjectID maps a sandcat project name to Cursor's
+// CursorWorkspaceProjectID maps a snadcat project name to Cursor's
 // ~/.cursor/projects/<id> directory name. Cursor encodes the workspace path
 // /workspaces/<name> by dropping the leading slash and replacing separators
 // with hyphens, e.g. "workspaces-foo-bar".

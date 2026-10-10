@@ -3,7 +3,7 @@
 //
 // Two-file model:
 //
-//   - devbox.stack.json is sandcat-managed: regenerated on every `sandcat init`
+//   - devbox.stack.json is snadcat-managed: regenerated on every `snadcat init`
 //     from the --stacks selection plus a baseline of shell tools every sandbox
 //     needs.
 //   - devbox.tools.json is user-managed: written once with an empty package

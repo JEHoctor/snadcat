@@ -1,5 +1,5 @@
 // Package stacks ports cli/lib/stacks.bash — the development-stack table that
-// `sandcat init --stacks` selects from.
+// `snadcat init --stacks` selects from.
 //
 // The bash original uses case functions rather than associative arrays purely
 // for Bash 3.2 compatibility; that constraint dies with the port, so this is a

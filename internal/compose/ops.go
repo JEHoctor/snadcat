@@ -73,7 +73,7 @@ func (f *File) SetWorkspace(projectName string) error {
 	return nil
 }
 
-// settingsVolumeComment explains why a missing .sandcat directory is not an
+// settingsVolumeComment explains why a missing .snadcat directory is not an
 // error, since Docker will silently create one.
 const settingsVolumeComment = `Project-level settings (.snadcat/ directory). If the directory does
 not exist on the host, Docker creates an empty one and the addon
@@ -167,8 +167,8 @@ const sharedCacheComment = "Shared dependency caches for the selected stacks (SN
 // resolved stacks, and declares each as an external volume.
 //
 // External is deliberate: the caches are host-scoped and shared across every
-// sandbox, so `sandcat compose down -v` in one project must not wipe caches
-// another project depends on. `sandcat run` creates them lazily.
+// sandbox, so `snadcat compose down -v` in one project must not wipe caches
+// another project depends on. `snadcat run` creates them lazily.
 //
 // When inactive the mounts are added as comments and no volumes are declared —
 // declaring an external volume nothing mounts would just fail at `up`.
@@ -289,7 +289,7 @@ var (
 
 // SetProxyTUIMode switches mitmproxy from the web UI to console mode.
 //
-// mitmdump logs flows as text to stdout, so `sandcat proxy` tails the logs
+// mitmdump logs flows as text to stdout, so `snadcat proxy` tails the logs
 // instead of opening a browser; the web-only flags and the published port
 // have to go with it.
 func (f *File) SetProxyTUIMode() {

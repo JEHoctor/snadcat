@@ -1,4 +1,4 @@
-// Package initialize ports cli/libexec/init/init — the `sandcat init` flow:
+// Package initialize ports cli/libexec/init/init — the `snadcat init` flow:
 // resolve every choice from flags or prompts, seed user settings, write the
 // project settings and .devcontainer tree, manage the .gitignore block, and
 // print the next-steps summary.
@@ -21,7 +21,7 @@ import (
 	"github.com/jehoctor/snadcat/internal/stacks"
 )
 
-// Options are the `sandcat init` flags. A zero value for a string field means
+// Options are the `snadcat init` flags. A zero value for a string field means
 // "prompt for it"; the *Provided booleans distinguish an explicitly empty flag
 // (e.g. `--stacks ""` meaning no stacks) from an absent one.
 type Options struct {
